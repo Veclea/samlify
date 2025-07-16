@@ -39,6 +39,15 @@ let soapSchema = [
     'saml-schema-dce-2.0.xsd'  // DCE扩展
 
 ]
+let meta = [
+    'saml-schema-metadata-2.0.xsd', // 元数据
+    'xml.xsd',
+    'saml-schema-assertion-2.0.xsd',
+    'xmldsig-core-schema.xsd',
+    'xenc-schema.xsd',
+
+
+]
 let  schemas = normal;
 
 function detectXXEIndicators(samlString: string) {
@@ -69,7 +78,6 @@ function detectXXEIndicators(samlString: string) {
 export const validate = async (xml: string,isSoap: boolean = false) => {
     const indicators = detectXXEIndicators(xml);
     if (indicators) {
-      console.log("----------------------绝对不会是这里---------------------")
         throw new Error('ERR_EXCEPTION_VALIDATE_XML');
     }
   schemas = isSoap ?soapSchema: normal;
@@ -93,14 +101,51 @@ export const validate = async (xml: string,isSoap: boolean = false) => {
         });
 
         if (validationResult.valid) {
-          console.log("验证通过-------------------------")
             return true;
         }
         throw validationResult.errors;
 
     } catch (error) {
-      console.log(error)
-      console.log("----------------------绝333333333333333333333333对不会是这里---------------------")
+        console.log(error)
+        console.log("真的错误了=================")
+        throw new Error('ERR_EXCEPTION_VALIDATE_XML');
+
+    }
+
+};
+export const validateMetadata = async (xml: string,isSoap: boolean = false) => {
+    const indicators = detectXXEIndicators(xml);
+    if (indicators) {
+        throw new Error('ERR_EXCEPTION_VALIDATE_XML');
+    }
+    schemas =meta;
+
+    const schemaPath = path.resolve(__dirname, 'schema');
+    const [xmlParse, ...preload] = await Promise.all(schemas.map(async file => ({
+        fileName: file,
+        contents: await fs.promises.readFile(`${schemaPath}/${file}`, 'utf-8')
+    })))
+    try {
+        const validationResult = await validateXML({
+            xml: [
+                {
+                    fileName: 'content.xml',
+                    contents: xml,
+                },
+            ],
+            extension: 'schema',
+            schema: [xmlParse],
+            preload: [xmlParse, ...preload],
+        });
+
+        if (validationResult.valid) {
+            return true;
+        }
+        throw validationResult.errors;
+
+    } catch (error) {
+        console.log(error)
+        console.log("真的错误了=================")
         throw new Error('ERR_EXCEPTION_VALIDATE_XML');
 
     }

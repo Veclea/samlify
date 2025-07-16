@@ -1,6 +1,6 @@
 {
   "name": "samlesa",
-  "version": "2.17.0",
+  "version": "2.17.1",
   "description": "High-level API for Single Sign On (SAML 2.0) baseed on samlify ",
   "main": "build/index.js",
   "keywords": [
@@ -46,6 +46,7 @@
     "axios": "^1.10.0",
     "camelcase": "^8.0.0",
     "cross-env": "^7.0.3",
+    "iconv-lite": "^0.6.3",
     "node-rsa": "^1.1.1",
     "pako": "^2.1.0",
     "ts-node": "^10.9.2",
@@ -55,6 +56,7 @@
     "xml-crypto": "^6.1.2",
     "xml-encryption": "^3.1.0",
     "xml-escape": "^1.1.0",
+    "xml2js": "^0.6.2",
     "xmllint-wasm": "^5.0.0",
     "xpath": "^0.0.32"
   },
