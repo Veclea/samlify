@@ -3,6 +3,7 @@
  * @author tngan
  * @desc  A simple library including some common functions
  */
+import { X509Certificate } from 'node:crypto';
 import xml from 'xml'
 import utility, {flattenDeep, inflateString, isString} from './utility.js';
 import {createSign, createPrivateKey, createVerify} from 'node:crypto';
@@ -190,9 +191,9 @@ const libSaml = () => {
   };
   const defaultSoapResponseFailTemplate = {
     context: `<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Header></SOAP-ENV:Header>
-<samlp:ArtifactResponse xmlns="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" 
+<samlp:ArtifactResponse xmlns="urn:oasis:names:tc:SAML:2.0:assertion" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
 xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
- InResponseTo="{InResponseTo}" Version="2.0" 
+ InResponseTo="{InResponseTo}" Version="2.0"
  IssueInstant="{IssueInstant}">
  <saml:Issuer>{Issuer}</saml:Issuer>
  <samlp:Status>
@@ -484,7 +485,26 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
       return isBase64Output ? utility.base64Encode(sig.getSignedXml()) : sig.getSignedXml();
     },
+    validateCertificate(certificate: string, expectedIssuer?: string) {
+    try {
+      const cert = new X509Certificate(Buffer.from(certificate, 'base64'));
 
+      // 验证有效期
+      const now = new Date();
+      if (new Date(cert.validFrom) > now || new Date(cert.validTo) < now) {
+        throw new Error('ERR_CERTIFICATE_EXPIRED');
+      }
+
+      // 验证颁发者（如果提供）
+      if (expectedIssuer && !cert.subject.includes(expectedIssuer)) {
+        throw new Error('ERR_CERTIFICATE_MISMATCH');
+      }
+
+      return true;
+    } catch (error) {
+      throw new Error('ERR_INVALID_CERTIFICATE');
+    }
+  },
     /**
      * @desc Verify the XML signature
      * @param  {string} xml xml
