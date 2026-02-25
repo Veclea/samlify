@@ -247,7 +247,8 @@ async function postFlow(options): Promise<FlowResult> {
         const result = await libsaml.decryptAssertion(self, samlContent);
         samlContent = result[0];
         extractorFields = getDefaultExtractorFields(parserType, result[1]);
-
+console.log("走这里来了=========")
+        console.log(result[0])
     }
 
 
