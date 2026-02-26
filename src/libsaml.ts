@@ -899,7 +899,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     console.log("验证MessageSignatureStatus==========================")
                     if (!MessageSignatureStatus) {
                         /** 签名验证失败 再直接验证外层*/
-                        throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
+
                         let MessageSignatureStatus2 = sig.checkSignature(xml);
                         if(!MessageSignatureStatus2){
                             throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
