@@ -184,6 +184,7 @@ async function redirectFlow(options): Promise<FlowResult> {
 // proceed the post flow
 async function postFlow(options): Promise<FlowResult> {
 
+
     const {
         request,
         from,
@@ -191,7 +192,6 @@ async function postFlow(options): Promise<FlowResult> {
         parserType,
         checkSignature = true
     } = options;
-
     const {body} = request;
     const direction = libsaml.getQueryParamByType(parserType);
     let encodedRequest = '';
@@ -327,8 +327,8 @@ console.log("走这里来了=========")
 
     // 改进的postFlow函数中关于签名验证的部分
     const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
-    console.log(verificationResult)
-    console.log("解析对象")
+/*    console.log(verificationResult)
+    console.log("解析对象")*/
     let resultObject = {
         isMessageSigned:true,//是否有外层的消息签名（Response或者Request 等最外层的签名）
         MessageSignatureStatus:true,//外层的签名是否经过验证
@@ -341,8 +341,10 @@ console.log("走这里来了=========")
         assertionContent:'xxx',//xxx是通过验证后 解密后的整个响应中的assertion 断言部分字符串
     }
 // 检查验证结果
+
     if (!verificationResult.status) {
         // 如果验证失败，根据具体情况返回错误
+        /** 需要判断是不是  */
         if (verificationResult.isMessageSigned && !verificationResult.MessageSignatureStatus) {
             return Promise.reject('ERR_FAIL_TO_VERIFY_MESSAGE_SIGNATURE');
         }
@@ -351,6 +353,12 @@ console.log("走这里来了=========")
         }
         if (verificationResult.encrypted && !verificationResult.decrypted) {
             return Promise.reject('ERR_FAIL_TO_DECRYPT_ASSERTION');
+        }
+        if (!verificationResult.isMessageSigned && verificationResult.type ==='LogoutRequest') {
+            return Promise.reject('ERR_LogoutRequest_Need_Signature');
+        }
+        if (!verificationResult.isMessageSigned && verificationResult.type ==='LogoutResponse') {
+            return Promise.reject('ERR_LogoutResponse_Need_Signature');
         }
 
         // 通用验证失败

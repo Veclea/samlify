@@ -311,8 +311,8 @@ describe('SAML Cryptographic Operations', () => {
   });
 
   test('verify a XML signature signed by RSA-SHA1 with metadata', () => {
-    const [isValid] = libsaml.verifySignature(_decodedResponse, {metadata: IdPMetadata});
-    expect(isValid).toBe(true);
+    const {status} = libsaml.verifySignature(_decodedResponse, {metadata: IdPMetadata},sp);
+    expect(status).toBe(true);
   });
 
   test('integrity check for request signed with RSA-SHA1', () => {
@@ -320,19 +320,19 @@ describe('SAML Cryptographic Operations', () => {
       libsaml.verifySignature(_falseDecodedRequestSHA1, {
         metadata: SPMetadata,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA1
-      });
-    }).toThrowError('ERR_FAILED_TO_VERIFY_SIGNATURE');
+      },sp);
+    }).toThrowError('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
   });
 
   test('verify a XML signature signed by RSA-SHA256 with metadata', () => {
-    const [isValid] = libsaml.verifySignature(
+    const {status} = libsaml.verifySignature(
       _decodedRequestSHA256,
       {
         metadata: SPMetadata,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA256
-      }
+      },sp
     );
-    expect(isValid).toBe(true);
+    expect(status).toBe(true);
   });
 
   test('integrity check for request signed with RSA-SHA256', () => {
@@ -340,19 +340,19 @@ describe('SAML Cryptographic Operations', () => {
       libsaml.verifySignature(_falseDecodedRequestSHA256, {
         metadata: SPMetadata,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA256
-      });
-    }).toThrowError('ERR_FAILED_TO_VERIFY_SIGNATURE');
+      },sp);
+    }).toThrowError('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
   });
 
   test('verify a XML signature signed by RSA-SHA512 with metadata', () => {
-    const [isValid] = libsaml.verifySignature(
+    const {status} = libsaml.verifySignature(
       _decodedRequestSHA512,
       {
         metadata: SPMetadata,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA512
-      }
+      },sp
     );
-    expect(isValid).toBe(true);
+    expect(status).toBe(true);
   });
 
   test('integrity check for request signed with RSA-SHA512', () => {
@@ -360,8 +360,8 @@ describe('SAML Cryptographic Operations', () => {
       libsaml.verifySignature(_falseDecodedRequestSHA512, {
         metadata: SPMetadata,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA512
-      });
-    }).toThrowError('ERR_FAILED_TO_VERIFY_SIGNATURE');
+      },sp );
+    }).toThrowError('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
   });
 
   test('verify a XML signature with rolling certificate', () => {
@@ -375,42 +375,44 @@ describe('SAML Cryptographic Operations', () => {
     const responseSignedByCert1 = String(readFileSync(testResourcePath('misc/response_signed_cert1.xml')));
     const responseSignedByCert2 = String(readFileSync(testResourcePath('misc/response_signed_cert2.xml')));
 
-    const [result1] = libsaml.verifySignature(
+    const {status} = libsaml.verifySignature(
       responseSignedByCert1,
       {
         metadata: idpRollingCert.entityMeta,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA256
-      }
+      },
+        sp
     );
 
-    const [result2] = libsaml.verifySignature(
+    const statusResult = libsaml.verifySignature(
       responseSignedByCert2,
       {
         metadata: idpRollingCert.entityMeta,
         signatureAlgorithm: signatureAlgorithms.RSA_SHA256
-      }
+      },
+        sp
     );
 
-    expect(result1).toBe(true);
-    expect(result2).toBe(true);
+    expect(status).toBe(true);
+    expect(statusResult.status).toBe(true);
   });
 
   test('verify a XML signature signed by RSA-SHA1 with .cer keyFile', () => {
     const xml = String(readFileSync(testResourcePath('misc/signed_request_sha1.xml')));
-    const [isValid] = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')});
-    expect(isValid).toBe(true);
+    const {status} = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')},sp);
+    expect(status).toBe(true);
   });
 
   test('verify a XML signature signed by RSA-SHA256 with .cer keyFile', () => {
     const xml = String(readFileSync(testResourcePath('misc/signed_request_sha256.xml')));
-    const [isValid] = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')});
-    expect(isValid).toBe(true);
+    const {status} = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')},sp);
+    expect(status).toBe(true);
   });
 
   test('verify a XML signature signed by RSA-SHA512 with .cer keyFile', () => {
     const xml = String(readFileSync(testResourcePath('misc/signed_request_sha512.xml')));
-    const [isValid] = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')});
-    expect(isValid).toBe(true);
+    const {status} = libsaml.verifySignature(xml, {keyFile: testResourcePath('key/sp/cert.cer')},sp);
+    expect(status).toBe(true);
   });
 
   test('encrypt assertion test passes', async () => {

@@ -2106,26 +2106,7 @@ test('idp sends a redirect logout request with signature and sp parses it', asyn
   expect(extractedData.request.destination).toBe('https://sp.example.org/sp/slo');
   expect(extractedData.signature).toBeNull(); // 重定向绑定不嵌入签名
 });
-// 测试：IDP 发送无签名的 POST 注销请求，SP 解析
-test('idp sends a post logout request without signature and sp parses it', async () => {
-  const result = idp.createLogoutRequest(sp, 'post', {NameID: 'user@esaml2.com'}) as PostBindingContext;
 
-  const {id, context} = result;
-
-  expect(typeof id).toBe('string');
-  expect(typeof context).toBe('string');
-  const {extract: extractedData} = await sp.parseLogoutRequest(
-    idp,
-    'post',
-    {body: {SAMLRequest: context}}
-  );
-
-  expect(extractedData.nameID).toBe('user@esaml2.com');
-  expect(extractedData.issuer).toBe('https://idp.example.com/metadata');
-  expect(typeof extractedData.request.id).toBe('string');
-  expect(extractedData.request.destination).toBe('https://sp.example.org/sp/slo');
-  expect(extractedData.signature).toBeNull();
-});
 
 // 测试：IDP 发送带签名的 POST 注销请求，SP 解析
 test('idp sends a post logout request with signature and sp parses it', async () => {
@@ -2148,7 +2129,33 @@ test('idp sends a post logout request with signature and sp parses it', async ()
   expect(typeof extractedData.request.id).toBe('string');
   expect(typeof extractedData.signature).toBe('string');
 });
+// 测试：IDP 发送无签名的 POST 注销请求，SP 解析
+test('idp sends a post logout request without signature and sp parses it', async () => {
+    const result = idp.createLogoutRequest(sp, 'post', {NameID: 'user@esaml2.com'}) as PostBindingContext;
 
+    const {id, context} = result;
+
+    expect(typeof id).toBe('string');
+    expect(typeof context).toBe('string');
+    /** 不接受没有签名的注销请求*/
+/*    const {extract: extractedData} = await sp.parseLogoutRequest(
+        idp,
+        'post',
+        {body: {SAMLRequest: context}}
+    );
+
+    expect(extractedData.nameID).toBe('user@esaml2.com');
+    expect(extractedData.issuer).toBe('https://idp.example.com/metadata');
+    expect(typeof extractedData.request.id).toBe('string');
+    expect(extractedData.request.destination).toBe('https://sp.example.org/sp/slo');
+    expect(extractedData.signature).toBeNull();*/
+
+    await expect( sp.parseLogoutRequest(
+        idp,
+        'post',
+        {body: {SAMLRequest: context}}
+    )).rejects.toThrow('ERR_LogoutRequest_Need_Signature')
+});
 // 测试：SP 发送无签名的 POST 注销响应，IDP 解析
 test('sp sends a post logout response without signature and parse', async () => {
   const result = sp.createLogoutResponse(idp, sampleRequestInfo, 'post', '', () =>
@@ -2163,7 +2170,7 @@ test('sp sends a post logout response without signature and parse', async () => 
   ) as PostBindingContext;
 
   const { context: SAMLResponse } = result;
-
+/*
   const { extract: extractedData } = await idp.parseLogoutResponse(
     sp,
     'post',
@@ -2173,7 +2180,12 @@ test('sp sends a post logout response without signature and parse', async () => 
   expect(extractedData.signature).toBeNull();
   expect(extractedData.issuer).toBe('https://sp.example.org/metadata');
   expect(typeof extractedData.response.id).toBe('string');
-  expect(extractedData.response.destination).toBe('https://idp.example.org/sso/SingleLogoutService');
+  expect(extractedData.response.destination).toBe('https://idp.example.org/sso/SingleLogoutService');*/
+    await expect(idp.parseLogoutResponse(
+        sp,
+        'post',
+        { body: { SAMLResponse } }
+    )).rejects.toThrow('ERR_LogoutResponse_Need_Signature')
 });
 
 // 测试：SP 发送带签名的 POST 注销响应，IDP 解析
@@ -2522,7 +2534,7 @@ test('should reject signature wrapped response - case 2', async () => {
       { body: { SAMLResponse: wrappedResponse } }
     )
   ).rejects.toThrow('ERR_POTENTIAL_WRAPPING_ATTACK');
-/!*  await expect(
+/*  await expect(
     sp.parseLoginResponse(
       idpNoEncrypt,
       'post',

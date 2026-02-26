@@ -736,8 +736,17 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          * @param self
          * @returns 验证结果对象
          */
-        verifySignature(xml: string, opts: SignatureVerifierOptions,self:any) {
-            const {dom} = getContext();
+
+
+        /**
+         * 改进的SAML签名验证函数，支持多种签名和加密组合场景
+         * @param xml SAML XML内容
+         * @param opts 验证选项
+         * @param self
+         * @returns 验证结果对象
+         */
+        verifySignature(xml: string, opts: SignatureVerifierOptions, self: any) {
+            const { dom } = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
             const docParser = new DOMParser();
 
@@ -773,6 +782,40 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             let samlContent = xml;
             let assertionContent = null;
 
+            // 检测SAML消息类型
+            // 检测SAML消息类型 - 使用精确匹配避免包含关系导致的误判
+            const rootElementName = doc.documentElement!.localName;
+            let type: 'AuthnRequest' | 'Response' | 'LogoutRequest' | 'LogoutResponse' | 'Unknown' = 'Unknown';
+
+            // 使用精确字符串比较，避免包含关系的问题
+            switch(rootElementName) {
+                case 'AuthnRequest':
+                    type = 'AuthnRequest';
+                    break;
+                case 'Response':
+                    type = 'Response';
+                    break;
+                case 'LogoutRequest':
+                    type = 'LogoutRequest';
+                    break;
+                case 'LogoutResponse':
+                    type = 'LogoutResponse';
+                    break;
+                default:
+                    // 如果不是完全匹配，尝试模糊匹配
+                    if (rootElementName!.includes('AuthnRequest')) {
+                        type = 'AuthnRequest';
+                    } else if (rootElementName!.includes('LogoutResponse')) {
+                        type = 'LogoutResponse';
+                    } else if (rootElementName!.includes('LogoutRequest')) {
+                        type = 'LogoutRequest';
+                    } else if (rootElementName!.includes('Response')) {
+                        type = 'Response';
+                    } else {
+                        type = 'Unknown';
+                    }
+            }
+
             // 特殊情况：带未签名断言的未签名SAML响应，应该拒绝
             if (!isMessageSigned && !isAssertionSigned && !encrypted) {
                 return {
@@ -782,14 +825,95 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     AssertionSignatureStatus,
                     encrypted,
                     decrypted,
+                    type, // 添加类型字段
                     status: false, // 明确拒绝未签名未加密的响应
                     samlContent,
                     assertionContent
                 };
             }
 
-            // 验证消息级签名（如果存在）
-            if (isMessageSigned) {
+            // 处理最外层有签名且断言加密的情况（关键逻辑补充）
+            if (isMessageSigned && encrypted) {
+                // 1. 首先解密断言
+                try {
+                    const result = this.decryptAssertionSync(self, xml, opts);
+                    // 更新文档为解密后的版本
+                    samlContent = result[0];
+                    assertionContent = result[1];
+
+                    // 更新验证状态
+                    decrypted = true;
+                    AssertionSignatureStatus = result?.[2]?.AssertionSignatureStatus || false;
+                    isAssertionSigned = result?.[2]?.isAssertionSigned || false;
+
+                    // 解密后的文档
+                    const decryptedDoc = dom.parseFromString(samlContent, 'application/xml');
+
+                    // 2. 验证最外层消息签名（使用解密后的文档）
+                    const signatureNode = messageSignatureNode[0];
+                    const sig = new SignedXml();
+
+                    if (!opts.keyFile && !opts.metadata) {
+                        throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
+                    }
+
+                    if (opts.keyFile) {
+                        sig.publicCert = fs.readFileSync(opts.keyFile);
+                    } else if (opts.metadata) {
+                        // @ts-expect-error misssing Node properties are not needed
+                        const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode) as any;
+
+                        let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
+                        if (Array.isArray(metadataCert)) {
+                            metadataCert = flattenDeep(metadataCert);
+                        } else if (typeof metadataCert === 'string') {
+                            metadataCert = [metadataCert];
+                        }
+                        metadataCert = metadataCert.map(utility.normalizeCerString);
+
+                        if (certificateNode.length === 0 && metadataCert.length === 0) {
+                            throw new Error('NO_SELECTED_CERTIFICATE');
+                        }
+
+                        if (certificateNode.length !== 0) {
+                            const x509CertificateData = certificateNode[0].firstChild.data;
+                            const x509Certificate = utility.normalizeCerString(x509CertificateData);
+
+                            if (metadataCert.length >= 1 && !metadataCert.find((cert: string) => cert.trim() === x509Certificate.trim())) {
+                                throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
+                            }
+
+                            sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
+                        } else {
+                            sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
+                        }
+                    }
+
+                    sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                    // @ts-expect-error misssing Node properties are not needed
+                    sig.loadSignature(signatureNode);
+
+                    // 使用解密后的文档验证最外层签名
+                    MessageSignatureStatus = sig.checkSignature(decryptedDoc.toString());
+
+
+                    if (!MessageSignatureStatus) {
+                        throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
+                    }
+
+                    // 3. 验证解密后断言的签名（如果存在）
+                    if (isAssertionSigned && AssertionSignatureStatus) {
+                     /*   console.log("断言签名验证已通过");*/
+                    } else if (isAssertionSigned && !AssertionSignatureStatus) {
+                        throw new Error('ERR_FAILED_TO_VERIFY_ASSERTION_SIGNATURE_AFTER_DECRYPTION');
+                    }
+
+                } catch (err) {
+                    throw err;
+                }
+            }
+            // 处理最外层有签名但断言未加密的情况
+            else if (isMessageSigned && !encrypted) {
                 const signatureNode = messageSignatureNode[0];
                 const sig = new SignedXml();
 
@@ -834,13 +958,16 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 sig.loadSignature(signatureNode);
                 MessageSignatureStatus = sig.checkSignature(doc.toString());
 
+
                 if (!MessageSignatureStatus) {
                     throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
                 }
             }
 
-            // 验证断言级签名（如果存在）
-            if (isAssertionSigned) {
+
+
+            // 验证断言级签名（如果存在且未加密）
+            if (isAssertionSigned && !encrypted) {
                 const signatureNode = assertionSignatureNode[0];
                 const sig = new SignedXml();
 
@@ -899,8 +1026,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 }
             }
 
-            // 处理加密断言
-            if (encrypted) {
+            // 处理仅加密断言的情况（无消息签名）
+            if (encrypted && !isMessageSigned) {
                 if (!encryptedAssertions || encryptedAssertions.length === 0) {
                     throw new Error('ERR_UNDEFINED_ENCRYPTED_ASSERTION');
                 }
@@ -912,18 +1039,14 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 const encAssertionNode = encryptedAssertions[0];
 
                 // 解密断言
-                console.log(xml)
-                console.log("解密的断言")
                 try {
-                    const result = this.decryptAssertionSync(self, xml,opts);
+                    const result = this.decryptAssertionSync(self, xml, opts);
                     samlContent = result[0];
                     assertionContent = result[1];
                     decrypted = true;
-                    AssertionSignatureStatus = result?.[2]?.AssertionSignatureStatus
-                    isAssertionSigned = result?.[2]?.isAssertionSigned
+                    AssertionSignatureStatus = result?.[2]?.AssertionSignatureStatus;
+                    isAssertionSigned = result?.[2]?.isAssertionSigned;
                 } catch (err) {
-                    console.log(err);
-                    console.log("看戏下========")
                     throw new Error('ERR_EXCEPTION_OF_ASSERTION_DECRYPTION');
                 }
             } else if (!encrypted && (isMessageSigned || isAssertionSigned)) {
@@ -948,12 +1071,12 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 AssertionSignatureStatus,
                 encrypted,
                 decrypted,
+                type, // 添加类型字段
                 status,
                 samlContent,
                 assertionContent
             };
         },
-
 
 
         verifySignatureSoap(xml: string, opts: SignatureVerifierOptions) {
@@ -1380,10 +1503,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             // 检查解密后的断言是否有签名
             // @ts-expect-error misssing Node properties are not needed
             const assertionSignatureNode = select("/*[local-name(.)='Assertion']/*[local-name(.)='Signature']", decryptedAssertionDoc);
-            console.log(assertionSignatureNode.length )
-            console.log("看下下====")
             if (assertionSignatureNode.length > 0 && opts) {
-                console.log("去验证签名了======")
                 // 解密后的断言有签名，需要验证
                 const signatureNode = assertionSignatureNode[0];
                 const sig = new SignedXml();
@@ -1427,13 +1547,9 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 sig.signatureAlgorithm = opts.signatureAlgorithm!;
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);
-console.log(decryptedResult)
-                console.log("解密结果====")
                 // 验证解密后断言的签名
                 const assertionDocForVerification = dom.parseFromString(decryptedResult, 'application/xml');
                 const assertionValid = sig.checkSignature(assertionDocForVerification.toString());
-         console.log(assertionValid)
-                console.log('断言签名验证成功')
                 AssertionSignatureStatus = assertionValid
                 if (!assertionValid) {
                     throw new Error('ERR_FAILED_TO_VERIFY_DECRYPTED_ASSERTION_SIGNATURE');
