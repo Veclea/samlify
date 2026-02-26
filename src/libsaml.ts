@@ -527,10 +527,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          *   - The second element is the cryptographically authenticated assertion node as a string, or `null` if not found.
          */
         // tslint:disable-next-line:no-shadowed-variable
-        verifySignature(xml: string, opts: SignatureVerifierOptions) {
-            console.log("结果")
-            console.log("结果")
-            console.log("结果")
+        verifySignature1(xml: string, opts: SignatureVerifierOptions) {
+
             const {dom} = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
 
@@ -566,7 +564,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 throw new Error('ERR_POTENTIAL_WRAPPING_ATTACK');
             }
             // 优先检测 LogoutRequest 签名
-// @ts-expect-error missing Node properties
+            // @ts-expect-error missing Node properties
             const logoutRequestSignature = select(logoutRequestSignatureXpath, doc);
             if (logoutRequestSignature.length > 0) {
                 selection = selection.concat(logoutRequestSignature);
@@ -646,7 +644,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
                     // certificate node in response
                     if (certificateNode.length !== 0) {
-                        console.log("开始1111")
                         const x509CertificateData = certificateNode[0].firstChild.data;
                         const x509Certificate = utility.normalizeCerString(x509CertificateData);
                         if (
@@ -732,233 +729,356 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             return [false, null, false, true]; // return encryptedAssert
             /*   throw new Error('ERR_ZERO_SIGNATURE');*/
         },
+        /**
+         * 改进的SAML签名验证函数，支持多种签名和加密组合场景
+         * @param xml SAML XML内容
+         * @param opts 验证选项
+         * @param self
+         * @returns 验证结果对象
+         */
 
-        /*  verifySignatureSoap(xml: string, opts: SignatureVerifierOptions & { isAssertion?: boolean }) {
-            const {dom} = getContext();
+
+        /**
+         * 改进的SAML签名验证函数，支持多种签名和加密组合场景
+         * @param xml SAML XML内容
+         * @param opts 验证选项
+         * @param self
+         * @returns 验证结果对象
+         */
+        verifySignature(xml: string, opts: SignatureVerifierOptions, self: any) {
+            const { dom } = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
             const docParser = new DOMParser();
 
-            let selection: any = [];
+            // 定义各种XPath路径
+            const messageSignatureXpath = "/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Signature']";
+            const assertionSignatureXpath = "/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Assertion']/*[local-name(.)='Signature']";
+            const wrappingElementsXPath = "/*[contains(local-name(), 'Response')]/*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='SubjectConfirmation']/*[local-name(.)='SubjectConfirmationData']//*[local-name(.)='Assertion' or local-name(.)='Signature']";
+            const encryptedAssertionsXPath = "/*[contains(local-name(), 'Response')]/*[local-name(.)='EncryptedAssertion']";
 
-            if (opts.isAssertion) {
-              // 断言模式下的专用逻辑
-              const assertionSignatureXpath = "./!*[local-name()='Signature']";
-              // @ts-expect-error misssing Node properties are not needed
-              const signatureNode = select(assertionSignatureXpath, doc.documentElement);
-
-              if (signatureNode.length === 0) {
-                throw new Error('ERR_ASSERTION_SIGNATURE_NOT_FOUND');
-              }
-
-              selection = selection.concat(signatureNode);
-            } else {
-              // 原始的SOAP响应验证逻辑
-              const messageSignatureXpath =
-                "/!*[local-name()='Envelope']/!*[local-name()='Body']" +
-                "/!*[local-name()='ArtifactResponse']/!*[local-name()='Signature'] | " +
-                "/!*[local-name()='Envelope']/!*[local-name()='Body']" +
-                "/!*[local-name()='ArtifactResponse']/!*[local-name()='Response']/!*[local-name()='Signature']";
-
-              const assertionSignatureXpath =
-                "/!*[local-name()='Envelope']/!*[local-name()='Body']" +
-                "/!*[local-name()='ArtifactResponse']/!*[local-name()='Response']" +
-                "/!*[local-name()='Assertion']/!*[local-name()='Signature'] | " +
-                "/!*[local-name()='Envelope']/!*[local-name()='Body']" +
-                "/!*[local-name()='ArtifactResponse']/!*[local-name()='Response']" +
-                "/!*[local-name()='EncryptedAssertion']";
-
-              const wrappingElementsXPath =
-                "/!*[local-name()='Envelope']/!*[local-name()='Body']" +
-                "/!*[local-name()='ArtifactResponse']/!*[local-name()='Response']" +
-                "/!*[local-name()='Assertion']/!*[local-name()='Subject']" +
-                "/!*[local-name()='SubjectConfirmation']" +
-                "/!*[local-name()='SubjectConfirmationData']" +
-                "//!*[local-name()='Assertion' or local-name()='Signature']";
-
-      // @ts-expect-error misssing Node properties are not needed
-              const messageSignatureNode = select(messageSignatureXpath, doc);
-              // @ts-expect-error misssing Node properties are not needed
-              const assertionSignatureNode = select(assertionSignatureXpath, doc);
-              // @ts-expect-error misssing Node properties are not needed
-              const wrappingElementNode = select(wrappingElementsXPath, doc);
-
-              // 检测包装攻击
-              if (wrappingElementNode.length !== 0) {
+            // 检测包装攻击
+            // @ts-expect-error misssing Node properties are not needed
+            const wrappingElementNode = select(wrappingElementsXPath, doc);
+            if (wrappingElementNode.length !== 0) {
                 throw new Error('ERR_POTENTIAL_WRAPPING_ATTACK');
-              }
-
-              // 保证响应中至少有一个签名
-              if (messageSignatureNode.length === 0 && assertionSignatureNode.length === 0) {
-                throw new Error('ERR_ZERO_SIGNATURE');
-              }
-
-              selection = selection.concat(messageSignatureNode, assertionSignatureNode);
             }
 
-            for (const signatureNode of selection) {
-              const sig = new SignedXml();
-              let verified = false;
+            // 获取各种元素
+            // @ts-expect-error misssing Node properties are not needed
+            const messageSignatureNode = select(messageSignatureXpath, doc);
+            // @ts-expect-error misssing Node properties are not needed
+            const assertionSignatureNode = select(assertionSignatureXpath, doc);
+            // @ts-expect-error misssing Node properties are not needed
+            const encryptedAssertions = select(encryptedAssertionsXPath, doc);
 
-              sig.signatureAlgorithm = opts.signatureAlgorithm!;
+            // 初始化验证状态
+            let isMessageSigned = messageSignatureNode.length > 0;
+            let isAssertionSigned = assertionSignatureNode.length > 0;
+            let encrypted = encryptedAssertions.length > 0;
+            let decrypted = false;
+            let MessageSignatureStatus = false;
+            let AssertionSignatureStatus = false;
+            let status = false;
+            let samlContent = xml;
+            let assertionContent = null;
 
-              if (!opts.keyFile && !opts.metadata) {
-                throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
-              }
+            // 检测SAML消息类型
+            // 检测SAML消息类型 - 使用精确匹配避免包含关系导致的误判
+            const rootElementName = doc.documentElement!.localName;
+            let type: 'AuthnRequest' | 'Response' | 'LogoutRequest' | 'LogoutResponse' | 'Unknown' = 'Unknown';
 
-              if (opts.keyFile) {
-                sig.publicCert = fs.readFileSync(opts.keyFile, 'utf-8');
-              }
-
-              if (opts.metadata) {
-                const certificateNodes = select(".//!*[local-name(.)='X509Certificate']", signatureNode) as any[];
-
-                // 获取元数据中的证书
-                let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
-
-                // 规范化元数据证书
-                if (Array.isArray(metadataCert)) {
-                  metadataCert = flattenDeep(metadataCert);
-                } else if (typeof metadataCert === 'string') {
-                  metadataCert = [metadataCert];
-                }
-
-                metadataCert = metadataCert.map(utility.normalizeCerString);
-
-                // 检查证书可用性
-                if (certificateNodes.length === 0 && metadataCert.length === 0) {
-                  throw new Error('NO_SELECTED_CERTIFICATE');
-                }
-
-                // 响应中有证书节点
-                if (certificateNodes.length !== 0) {
-                  // 安全获取证书数据
-                  let x509CertificateData = '';
-                  if (certificateNodes[0].firstChild) {
-                    x509CertificateData = certificateNodes[0].firstChild.data;
-                  } else if (certificateNodes[0].textContent) {
-                    x509CertificateData = certificateNodes[0].textContent;
-                  }
-
-                  const x509Certificate = utility.normalizeCerString(x509CertificateData);
-
-                  // 验证证书匹配
-                  if (
-                    metadataCert.length >= 1 &&
-                    !metadataCert.find(cert => cert.trim() === x509Certificate.trim())
-                  ) {
-                    throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
-                  }
-
-                  sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
-                } else {
-                  // 使用元数据中的第一个证书
-                  sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
-                }
-              }
-
-              // 加载签名
-              sig.loadSignature(signatureNode);
-              // 使用原始 XML 进行验证
-              verified = sig.checkSignature(xml);
-
-              if (!verified) {
-                throw new Error('ERR_FAILED_TO_VERIFY_SIGNATURE');
-              }
-
-              // 检查签名引用
-              if (!(sig.getSignedReferences().length >= 1)) {
-                throw new Error('NO_SIGNATURE_REFERENCES');
-              }
-
-              const signedVerifiedXML = sig.getSignedReferences()[0];
-              const verifiedDoc = docParser.parseFromString(signedVerifiedXML, 'application/xml');
-              const rootNode = verifiedDoc.documentElement;
-
-
-              // 断言模式专用返回逻辑
-              if (opts.isAssertion) {
-                if (rootNode?.localName === 'Assertion') {
-                  return [true, rootNode.toString(), false];
-                } else {
-                  throw new Error('ERR_INVALID_ASSERTION_SIGNATURE');
-                }
-              }
-
-              // 处理已验证的签名
-              // @ts-expect-error misssing Node properties are not needed
-              if (rootNode.localName === 'ArtifactResponse') {
-                // 在 ArtifactResponse 中查找 Response
-                // @ts-expect-error misssing Node properties are not needed
-                const responseNodes = select(
-                  "./!*[local-name()='Response']",
-                  // @ts-expect-error misssing Node properties are not needed
-                  rootNode
-                ) as Element[];
-
-                if (responseNodes.length === 0) {
-                  continue;
-                }
-
-                const responseNode = responseNodes[0];
-
-                // 在 Response 中查找断言
-                const encryptedAssertions = select(
-                  "./!*[local-name()='EncryptedAssertion']",
-                  responseNode
-                ) as Element[];
-
-                const assertions = select(
-                  "./!*[local-name()='Assertion']",
-                  responseNode
-                ) as Element[];
-
-                if (encryptedAssertions.length === 1) {
-                  return [true, encryptedAssertions[0].toString(), true];
-                }
-
-                if (assertions.length === 1) {
-                  return [true, assertions[0].toString(), false];
-                }
-              }
-              // 直接处理 Response
-
-              else if (rootNode?.localName === 'Response') {
-                // @ts-expect-error misssing Node properties are not needed
-                const encryptedAssertions = select(
-                  "./!*[local-name()='EncryptedAssertion']",
-                  // @ts-expect-error misssing Node properties are not needed
-                  rootNode
-                ) as Element[];
-                // @ts-expect-error misssing Node properties are not needed
-                const assertions = select(
-                  "./!*[local-name()='Assertion']",
-                  // @ts-expect-error misssing Node properties are not needed
-                  rootNode
-                ) as Element[];
-
-                if (encryptedAssertions.length === 1) {
-                  return [true, encryptedAssertions[0].toString(), true];
-                }
-
-                if (assertions.length === 1) {
-                  return [true, assertions[0].toString(), false];
-                }
-              }
-              // 直接处理 Assertion
-              else if (rootNode?.localName === 'Assertion') {
-                return [true, rootNode.toString(), false];
-              }
-              // 直接处理 EncryptedAssertion
-              else if (rootNode?.localName === 'EncryptedAssertion') {
-                return [true, rootNode.toString(), true];
-              } else {
-
-                console.warn("未知的根节点类型:", rootNode?.localName);
-              }
+            // 使用精确字符串比较，避免包含关系的问题
+            switch(rootElementName) {
+                case 'AuthnRequest':
+                    type = 'AuthnRequest';
+                    break;
+                case 'Response':
+                    type = 'Response';
+                    break;
+                case 'LogoutRequest':
+                    type = 'LogoutRequest';
+                    break;
+                case 'LogoutResponse':
+                    type = 'LogoutResponse';
+                    break;
+                default:
+                    // 如果不是完全匹配，尝试模糊匹配
+                    if (rootElementName!.includes('AuthnRequest')) {
+                        type = 'AuthnRequest';
+                    } else if (rootElementName!.includes('LogoutResponse')) {
+                        type = 'LogoutResponse';
+                    } else if (rootElementName!.includes('LogoutRequest')) {
+                        type = 'LogoutRequest';
+                    } else if (rootElementName!.includes('Response')) {
+                        type = 'Response';
+                    } else {
+                        type = 'Unknown';
+                    }
             }
 
-            throw new Error('ERR_ZERO_SIGNATURE');
-          },*/
+            // 特殊情况：带未签名断言的未签名SAML响应，应该拒绝
+            if (!isMessageSigned && !isAssertionSigned && !encrypted) {
+                return {
+                    isMessageSigned,
+                    MessageSignatureStatus,
+                    isAssertionSigned,
+                    AssertionSignatureStatus,
+                    encrypted,
+                    decrypted,
+                    type, // 添加类型字段
+                    status: false, // 明确拒绝未签名未加密的响应
+                    samlContent,
+                    assertionContent
+                };
+            }
+
+            // 处理最外层有签名且断言加密的情况（关键逻辑补充）
+            if (isMessageSigned && encrypted) {
+                // 1. 首先解密断言
+                try {
+                    const result = this.decryptAssertionSync(self, xml, opts);
+                    // 更新文档为解密后的版本
+                    samlContent = result[0];
+                    assertionContent = result[1];
+
+                    // 更新验证状态
+                    decrypted = true;
+                    AssertionSignatureStatus = result?.[2]?.AssertionSignatureStatus || false;
+                    isAssertionSigned = result?.[2]?.isAssertionSigned || false;
+
+                    // 解密后的文档
+                    const decryptedDoc = dom.parseFromString(samlContent, 'application/xml');
+
+                    // 2. 验证最外层消息签名（使用解密后的文档）
+                    const signatureNode = messageSignatureNode[0];
+                    const sig = new SignedXml();
+
+                    if (!opts.keyFile && !opts.metadata) {
+                        throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
+                    }
+
+                    if (opts.keyFile) {
+                        sig.publicCert = fs.readFileSync(opts.keyFile);
+                    } else if (opts.metadata) {
+                        // @ts-expect-error misssing Node properties are not needed
+                        const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode) as any;
+
+                        let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
+                        if (Array.isArray(metadataCert)) {
+                            metadataCert = flattenDeep(metadataCert);
+                        } else if (typeof metadataCert === 'string') {
+                            metadataCert = [metadataCert];
+                        }
+                        metadataCert = metadataCert.map(utility.normalizeCerString);
+
+                        if (certificateNode.length === 0 && metadataCert.length === 0) {
+                            throw new Error('NO_SELECTED_CERTIFICATE');
+                        }
+
+                        if (certificateNode.length !== 0) {
+                            const x509CertificateData = certificateNode[0].firstChild.data;
+                            const x509Certificate = utility.normalizeCerString(x509CertificateData);
+
+                            if (metadataCert.length >= 1 && !metadataCert.find((cert: string) => cert.trim() === x509Certificate.trim())) {
+                                throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
+                            }
+
+                            sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
+                        } else {
+                            sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
+                        }
+                    }
+
+                    sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                    // @ts-expect-error misssing Node properties are not needed
+                    sig.loadSignature(signatureNode);
+
+                    // 使用解密后的文档验证最外层签名
+                    MessageSignatureStatus = sig.checkSignature(decryptedDoc.toString());
+
+
+                    if (!MessageSignatureStatus) {
+                        throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
+                    }
+
+                    // 3. 验证解密后断言的签名（如果存在）
+                    if (isAssertionSigned && AssertionSignatureStatus) {
+                     /*   console.log("断言签名验证已通过");*/
+                    } else if (isAssertionSigned && !AssertionSignatureStatus) {
+                        throw new Error('ERR_FAILED_TO_VERIFY_ASSERTION_SIGNATURE_AFTER_DECRYPTION');
+                    }
+
+                } catch (err) {
+                    throw err;
+                }
+            }
+            // 处理最外层有签名但断言未加密的情况
+            else if (isMessageSigned && !encrypted) {
+                const signatureNode = messageSignatureNode[0];
+                const sig = new SignedXml();
+
+                if (!opts.keyFile && !opts.metadata) {
+                    throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
+                }
+
+                if (opts.keyFile) {
+                    sig.publicCert = fs.readFileSync(opts.keyFile);
+                } else if (opts.metadata) {
+                    // @ts-expect-error misssing Node properties are not needed
+                    const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode) as any;
+
+                    let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
+                    if (Array.isArray(metadataCert)) {
+                        metadataCert = flattenDeep(metadataCert);
+                    } else if (typeof metadataCert === 'string') {
+                        metadataCert = [metadataCert];
+                    }
+                    metadataCert = metadataCert.map(utility.normalizeCerString);
+
+                    if (certificateNode.length === 0 && metadataCert.length === 0) {
+                        throw new Error('NO_SELECTED_CERTIFICATE');
+                    }
+
+                    if (certificateNode.length !== 0) {
+                        const x509CertificateData = certificateNode[0].firstChild.data;
+                        const x509Certificate = utility.normalizeCerString(x509CertificateData);
+
+                        if (metadataCert.length >= 1 && !metadataCert.find((cert: string) => cert.trim() === x509Certificate.trim())) {
+                            throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
+                        }
+
+                        sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
+                    } else {
+                        sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
+                    }
+                }
+
+                sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                // @ts-expect-error misssing Node properties are not needed
+                sig.loadSignature(signatureNode);
+                MessageSignatureStatus = sig.checkSignature(doc.toString());
+
+
+                if (!MessageSignatureStatus) {
+                    throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
+                }
+            }
+
+
+
+            // 验证断言级签名（如果存在且未加密）
+            if (isAssertionSigned && !encrypted) {
+                const signatureNode = assertionSignatureNode[0];
+                const sig = new SignedXml();
+
+                if (!opts.keyFile && !opts.metadata) {
+                    throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
+                }
+
+                if (opts.keyFile) {
+                    sig.publicCert = fs.readFileSync(opts.keyFile);
+                } else if (opts.metadata) {
+                    // @ts-expect-error misssing Node properties are not needed
+                    const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode) as any;
+
+                    let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
+                    if (Array.isArray(metadataCert)) {
+                        metadataCert = flattenDeep(metadataCert);
+                    } else if (typeof metadataCert === 'string') {
+                        metadataCert = [metadataCert];
+                    }
+                    metadataCert = metadataCert.map(utility.normalizeCerString);
+
+                    if (certificateNode.length === 0 && metadataCert.length === 0) {
+                        throw new Error('NO_SELECTED_CERTIFICATE');
+                    }
+
+                    if (certificateNode.length !== 0) {
+                        const x509CertificateData = certificateNode[0].firstChild.data;
+                        const x509Certificate = utility.normalizeCerString(x509CertificateData);
+
+                        if (metadataCert.length >= 1 && !metadataCert.find((cert: string) => cert.trim() === x509Certificate.trim())) {
+                            throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
+                        }
+
+                        sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
+                    } else {
+                        sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
+                    }
+                }
+
+                sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                // @ts-expect-error misssing Node properties are not needed
+                sig.loadSignature(signatureNode);
+
+                // 为断言签名验证，我们需要从根文档中获取断言部分
+                // @ts-expect-error misssing Node properties are not needed
+                const assertionNode = select("/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Assertion']", doc)[0];
+                if (assertionNode) {
+                    const assertionDoc = dom.parseFromString(assertionNode.toString(), 'application/xml');
+                    AssertionSignatureStatus = sig.checkSignature(assertionDoc.toString());
+                } else {
+                    AssertionSignatureStatus = false;
+                }
+
+                if (!AssertionSignatureStatus) {
+                    throw new Error('ERR_FAILED_TO_VERIFY_ASSERTION_SIGNATURE');
+                }
+            }
+
+            // 处理仅加密断言的情况（无消息签名）
+            if (encrypted && !isMessageSigned) {
+                if (!encryptedAssertions || encryptedAssertions.length === 0) {
+                    throw new Error('ERR_UNDEFINED_ENCRYPTED_ASSERTION');
+                }
+
+                if (encryptedAssertions.length > 1) {
+                    throw new Error('ERR_MULTIPLE_ASSERTION');
+                }
+
+                const encAssertionNode = encryptedAssertions[0];
+
+                // 解密断言
+                try {
+                    const result = this.decryptAssertionSync(self, xml, opts);
+                    samlContent = result[0];
+                    assertionContent = result[1];
+                    decrypted = true;
+                    AssertionSignatureStatus = result?.[2]?.AssertionSignatureStatus;
+                    isAssertionSigned = result?.[2]?.isAssertionSigned;
+                } catch (err) {
+                    throw new Error('ERR_EXCEPTION_OF_ASSERTION_DECRYPTION');
+                }
+            } else if (!encrypted && (isMessageSigned || isAssertionSigned)) {
+                // 如果没有加密但有签名，提取断言内容
+                // @ts-expect-error misssing Node properties are not needed
+                const assertions = select("/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Assertion']", doc);
+                if (assertions.length > 0) {
+                    // @ts-expect-error misssing Node properties are not needed
+                    assertionContent = assertions[0].toString();
+                }
+            }
+
+            // 检查整体状态
+            status = (!isMessageSigned || MessageSignatureStatus) &&
+                (!isAssertionSigned || AssertionSignatureStatus) &&
+                (!encrypted || decrypted);
+
+            return {
+                isMessageSigned,
+                MessageSignatureStatus,
+                isAssertionSigned,
+                AssertionSignatureStatus,
+                encrypted,
+                decrypted,
+                type, // 添加类型字段
+                status,
+                samlContent,
+                assertionContent
+            };
+        },
+
+
         verifySignatureSoap(xml: string, opts: SignatureVerifierOptions) {
             const {dom} = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
@@ -1158,9 +1278,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          * @param signingAlgorithm - 签名算法 (默认 'rsa-sha256')
          * @returns 消息签名
          */
-
-
-
         constructMessageSignature(
             octetString: string,
             key: string,
@@ -1337,7 +1454,118 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 });
             });
         },
+        /**
+         * 同步版本的断言解密函数
+         */
+        /**
+         * 同步版本的断言解密函数，支持解密后验证断言签名
+         */
+        decryptAssertionSync(here, entireXML: string, opts?: SignatureVerifierOptions) {
+            const hereSetting = here.entitySetting;
+            const {dom} = getContext();
+            const doc = dom.parseFromString(entireXML, 'application/xml');
 
+            // @ts-expect-error misssing Node properties are not needed
+            const encryptedAssertions = select("/*[contains(local-name(), 'Response')]/*[local-name(.)='EncryptedAssertion']", doc) as Node[];
+
+            if (!Array.isArray(encryptedAssertions) || encryptedAssertions.length === 0) {
+                throw new Error('ERR_UNDEFINED_ENCRYPTED_ASSERTION');
+            }
+
+            if (encryptedAssertions.length > 1) {
+                throw new Error('ERR_MULTIPLE_ASSERTION');
+            }
+
+            const encAssertionNode = encryptedAssertions[0];
+
+            let decryptedResult: string | null = null;
+
+            // 使用同步方式处理解密
+            xmlenc.decrypt(encAssertionNode.toString(), {
+                key: utility.readPrivateKey(hereSetting.encPrivateKey, hereSetting.encPrivateKeyPass),
+            }, (err, res) => {
+                if (err) {
+                    throw new Error('ERR_EXCEPTION_OF_ASSERTION_DECRYPTION');
+                }
+                if (!res) {
+                    throw new Error('ERR_UNDEFINED_ENCRYPTED_ASSERTION');
+                }
+                decryptedResult = res;
+            });
+
+            if (!decryptedResult) {
+                throw new Error('ERR_UNDEFINED_DECRYPTED_ASSERTION');
+            }
+
+            // 解密完成后，检查解密后的断言是否还有签名需要验证
+            const decryptedAssertionDoc = dom.parseFromString(decryptedResult, 'application/xml');
+           let AssertionSignatureStatus = false
+            // 检查解密后的断言是否有签名
+            // @ts-expect-error misssing Node properties are not needed
+            const assertionSignatureNode = select("/*[local-name(.)='Assertion']/*[local-name(.)='Signature']", decryptedAssertionDoc);
+            if (assertionSignatureNode.length > 0 && opts) {
+                // 解密后的断言有签名，需要验证
+                const signatureNode = assertionSignatureNode[0];
+                const sig = new SignedXml();
+
+                if (!opts.keyFile && !opts.metadata) {
+                    throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
+                }
+
+                if (opts.keyFile) {
+                    sig.publicCert = fs.readFileSync(opts.keyFile);
+                } else if (opts.metadata) {
+                    // @ts-expect-error misssing Node properties are not needed
+                    const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode) as any;
+
+                    let metadataCert: any = opts.metadata.getX509Certificate(certUse.signing);
+                    if (Array.isArray(metadataCert)) {
+                        metadataCert = flattenDeep(metadataCert);
+                    } else if (typeof metadataCert === 'string') {
+                        metadataCert = [metadataCert];
+                    }
+                    metadataCert = metadataCert.map(utility.normalizeCerString);
+
+                    if (certificateNode.length === 0 && metadataCert.length === 0) {
+                        throw new Error('NO_SELECTED_CERTIFICATE');
+                    }
+
+                    if (certificateNode.length !== 0) {
+                        const x509CertificateData = certificateNode[0].firstChild.data;
+                        const x509Certificate = utility.normalizeCerString(x509CertificateData);
+
+                        if (metadataCert.length >= 1 && !metadataCert.find((cert: string) => cert.trim() === x509Certificate.trim())) {
+                            throw new Error('ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA');
+                        }
+
+                        sig.publicCert = this.getKeyInfo(x509Certificate).getKey();
+                    } else {
+                        sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
+                    }
+                }
+
+                sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                // @ts-expect-error misssing Node properties are not needed
+                sig.loadSignature(signatureNode);
+                // 验证解密后断言的签名
+                const assertionDocForVerification = dom.parseFromString(decryptedResult, 'application/xml');
+                const assertionValid = sig.checkSignature(assertionDocForVerification.toString());
+                AssertionSignatureStatus = assertionValid
+                if (!assertionValid) {
+                    throw new Error('ERR_FAILED_TO_VERIFY_DECRYPTED_ASSERTION_SIGNATURE');
+                }
+            }
+
+            // 将解密后的断言替换原始文档中的加密断言
+            const rawAssertionDoc = dom.parseFromString(decryptedResult, 'application/xml');
+            // @ts-ignore
+            doc.documentElement.replaceChild(rawAssertionDoc.documentElement, encAssertionNode);
+
+            return [doc.toString(), decryptedResult,{
+                isAssertionSigned:!!(assertionSignatureNode.length > 0 && opts),
+                AssertionSignatureStatus:AssertionSignatureStatus
+            }];
+        },
         /**
          * 解密 SOAP 响应中的加密断言
          * @param self 当前实体（SP 或 IdP）
