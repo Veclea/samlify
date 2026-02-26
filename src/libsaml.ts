@@ -893,12 +893,20 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     // @ts-expect-error misssing Node properties are not needed
                     sig.loadSignature(signatureNode);
 
-                    // 使用解密后的文档验证最外层签名
+                    // 使用解密后的文档验证最外层签名.默认采用的都是采用的先签名后加密的顺序，对应sp应该先解密 然后验证签名。 如果解密后验证外层签名失败有可能是先加密后签名，此时sp应该直接验证没解密的外层签名
                     MessageSignatureStatus = sig.checkSignature(decryptedDoc.toString());
-
-
+                    console.log(MessageSignatureStatus)
+                    console.log("验证MessageSignatureStatus==========================")
                     if (!MessageSignatureStatus) {
+                        /** 签名验证失败 再直接验证外层*/
                         throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
+                        let MessageSignatureStatus2 = sig.checkSignature(xml);
+                        if(!MessageSignatureStatus2){
+                            throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE_AFTER_DECRYPTION');
+                        }else{
+                            MessageSignatureStatus = MessageSignatureStatus2
+                        }
+
                     }
 
                     // 3. 验证解密后断言的签名（如果存在）
@@ -1551,6 +1559,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 const assertionDocForVerification = dom.parseFromString(decryptedResult, 'application/xml');
                 const assertionValid = sig.checkSignature(assertionDocForVerification.toString());
                 AssertionSignatureStatus = assertionValid
+                console.log(AssertionSignatureStatus)
+                console.log("验证通过了====")
                 if (!assertionValid) {
                     throw new Error('ERR_FAILED_TO_VERIFY_DECRYPTED_ASSERTION_SIGNATURE');
                 }
