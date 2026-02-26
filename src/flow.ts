@@ -226,7 +226,7 @@ async function postFlow(options): Promise<FlowResult> {
     // check status based on different scenarios
     await checkStatus(samlContent, parserType);
     /**检查签名顺序 */
-
+/*
     const [verified, verifiedAssertionNode, isDecryptRequired, noSignature] = libsaml.verifySignature(samlContent, verificationOptions);
     decryptRequired = isDecryptRequired
     if (isDecryptRequired && noSignature) {
@@ -248,7 +248,7 @@ async function postFlow(options): Promise<FlowResult> {
         samlContent = result[0];
         extractorFields = getDefaultExtractorFields(parserType, result[1]);
 console.log("走这里来了=========")
-        console.log(result[0])
+        console.log(result[1])
     }
 
 
@@ -256,9 +256,9 @@ console.log("走这里来了=========")
         samlContent: samlContent,
         extract: extract(samlContent, extractorFields),
     };
-    /**
+    /!**
      *  Validation part: validate the context of response after signature is verified and decrypted (optional)
-     */
+     *!/
     const targetEntityMetadata = from.entityMeta;
     const issuer = targetEntityMetadata.getEntityID();
     const extractedProperties = parseResult.extract;
@@ -302,6 +302,123 @@ console.log("走这里来了=========")
     //There is no validation of the response here. The upper-layer application
     // should verify the result by itself to see if the destination is equal to the SP acs and
     // whether the response.id is used to prevent replay attacks.
+    /!*
+        let destination = extractedProperties?.response?.destination
+        let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
+            return item?.Location === destination
+        })
+        if (isExit?.length === 0) {
+            return Promise.reject('ERR_Destination_URL');
+        }
+        if (parserType === 'SAMLResponse') {
+            let destination = extractedProperties?.response?.destination
+            let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
+                return item?.Location === destination
+            })
+            if (isExit?.length === 0) {
+                return Promise.reject('ERR_Destination_URL');
+            }
+        }
+    *!/
+
+
+    return Promise.resolve(parseResult);*/
+
+
+    // 改进的postFlow函数中关于签名验证的部分
+    const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
+    console.log(verificationResult)
+    console.log("解析对象")
+    let resultObject = {
+        isMessageSigned:true,//是否有外层的消息签名（Response或者Request 等最外层的签名）
+        MessageSignatureStatus:true,//外层的签名是否经过验证
+        isAssertionSigned:true,//是否有断言的签名
+        AssertionSignatureStatus:true,//断言签名是否经过验证
+        encrypted:true ,//断言是否加密
+        decrypted:true ,//断言加密后断言是否解密成功，
+        status:true,//是否全部通过验证,
+        samlContent:'xxx',//xxx是通过验证后 解密后的整个响应，
+        assertionContent:'xxx',//xxx是通过验证后 解密后的整个响应中的assertion 断言部分字符串
+    }
+// 检查验证结果
+    if (!verificationResult.status) {
+        // 如果验证失败，根据具体情况返回错误
+        if (verificationResult.isMessageSigned && !verificationResult.MessageSignatureStatus) {
+            return Promise.reject('ERR_FAIL_TO_VERIFY_MESSAGE_SIGNATURE');
+        }
+        if (verificationResult.isAssertionSigned && !verificationResult.AssertionSignatureStatus) {
+            return Promise.reject('ERR_FAIL_TO_VERIFY_ASSERTION_SIGNATURE');
+        }
+        if (verificationResult.encrypted && !verificationResult.decrypted) {
+            return Promise.reject('ERR_FAIL_TO_DECRYPT_ASSERTION');
+        }
+
+        // 通用验证失败
+        return Promise.reject('ERR_FAIL_TO_VERIFY_SIGNATURE_OR_DECRYPTION');
+    }
+
+// 更新samlContent为验证后的版本（可能已解密）
+    samlContent = verificationResult.samlContent;
+
+// 根据验证结果设置extractorFields
+    if (verificationResult.assertionContent) {
+        extractorFields = getDefaultExtractorFields(parserType, verificationResult.assertionContent);
+    } else {
+        // 如果没有断言内容（例如注销请求/响应），使用适当的处理方式
+        extractorFields = getDefaultExtractorFields(parserType, null);
+    }
+
+    const parseResult = {
+        samlContent: samlContent,
+        extract: extract(samlContent, extractorFields),
+    };
+
+    /**
+     *  Validation part: validate the context of response after signature is verified and decrypted (optional)
+     */
+    const targetEntityMetadata = from.entityMeta;
+    const issuer = targetEntityMetadata.getEntityID();
+    const extractedProperties = parseResult.extract;
+// unmatched issuer
+    if (
+        (parserType === 'LogoutResponse' || parserType === 'SAMLResponse')
+        && extractedProperties
+        && extractedProperties.issuer !== issuer
+    ) {
+        return Promise.reject('ERR_UNMATCH_ISSUER');
+    }
+
+// invalid session time
+// only run the verifyTime when `SessionNotOnOrAfter` exists
+    if (
+        parserType === 'SAMLResponse'
+        && extractedProperties.sessionIndex.sessionNotOnOrAfter
+        && !verifyTime(
+            undefined,
+            extractedProperties.sessionIndex.sessionNotOnOrAfter,
+            self.entitySetting.clockDrifts
+        )
+    ) {
+        return Promise.reject('ERR_EXPIRED_SESSION');
+    }
+
+// invalid time
+// 2.4.1.2 https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+    if (
+        parserType === 'SAMLResponse'
+        && extractedProperties.conditions
+        && !verifyTime(
+            extractedProperties.conditions.notBefore,
+            extractedProperties.conditions.notOnOrAfter,
+            self.entitySetting.clockDrifts
+        )
+    ) {
+        return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
+    }
+//valid destination
+//There is no validation of the response here. The upper-layer application
+// should verify the result by itself to see if the destination is equal to the SP acs and
+// whether the response.id is used to prevent replay attacks.
     /*
         let destination = extractedProperties?.response?.destination
         let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
@@ -323,6 +440,7 @@ console.log("走这里来了=========")
 
 
     return Promise.resolve(parseResult);
+
 }
 
 // proceed the post Artifact flow
@@ -362,18 +480,37 @@ async function postArtifactFlow(options): Promise<FlowResult> {
 
 
 
-    const [verified, verifiedAssertionNode, isDecryptRequired] = libsaml.verifySignature(samlContent, verificationOptions);
-    decryptRequired = isDecryptRequired
-    if (!verified) {
-        return Promise.reject('ERR_FAIL_TO_VERIFY_ETS_SIGNATURE');
+        // 改进的postFlow函数中关于签名验证的部分
+    const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
+    console.log(verificationResult)
+    console.log("最终结果====")
+
+// 检查验证结果
+    if (!verificationResult.status) {
+        // 如果验证失败，根据具体情况返回错误
+        if (verificationResult.isMessageSigned && !verificationResult.MessageSignatureStatus) {
+            return Promise.reject('ERR_FAIL_TO_VERIFY_MESSAGE_SIGNATURE');
+        }
+        if (verificationResult.isAssertionSigned && !verificationResult.AssertionSignatureStatus) {
+            return Promise.reject('ERR_FAIL_TO_VERIFY_ASSERTION_SIGNATURE');
+        }
+        if (verificationResult.encrypted && !verificationResult.decrypted) {
+            return Promise.reject('ERR_FAIL_TO_DECRYPT_ASSERTION');
+        }
+
+        // 通用验证失败
+        return Promise.reject('ERR_FAIL_TO_VERIFY_SIGNATURE_OR_DECRYPTION');
     }
-    if (!decryptRequired) {
-        extractorFields = getDefaultExtractorFields(parserType, verifiedAssertionNode);
-    }
-    if (parserType === 'SAMLResponse' && decryptRequired) {
-        const result = await libsaml.decryptAssertion(self, samlContent);
-        samlContent = result[0];
-        extractorFields = getDefaultExtractorFields(parserType, result[1]);
+
+// 更新samlContent为验证后的版本（可能已解密）
+    samlContent = verificationResult.samlContent;
+
+// 根据验证结果设置extractorFields
+    if (verificationResult.assertionContent) {
+        extractorFields = getDefaultExtractorFields(parserType, verificationResult.assertionContent);
+    } else {
+        // 如果没有断言内容（例如注销请求/响应），使用适当的处理方式
+        extractorFields = getDefaultExtractorFields(parserType, null);
     }
 
 

@@ -442,26 +442,37 @@ async function parseLoginResponseResolve(params: { idp: IdentityProvider, sp: Se
             return Promise.reject('ERR_FAIL_TO_VERIFY_ETS_SIGNATURE');
         }
         samlContent = verifiedAssertionNode1 as string
-        const [verified, verifiedAssertionNode, isDecryptRequired, noSignature] = libsaml.verifySignature(samlContent, verificationOptions);
+        // 改进的postFlow函数中关于签名验证的部分
+        const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
 
-        if (isDecryptRequired && noSignature) {
-            const result = await libsaml.decryptAssertion(sp, samlContent);
-            samlContent = result[0];
-            extractorFields = getDefaultExtractorFields(parserType, result[1]);
-        }
-        if (!verified && !noSignature && !isDecryptRequired) {
-            return Promise.reject('ERR_FAIL_TO_VERIFY_ETS_SIGNATURE');
-        }
-        if (!isDecryptRequired) {
+// 检查验证结果
+        if (!verificationResult.status) {
+            // 如果验证失败，根据具体情况返回错误
+            if (verificationResult.isMessageSigned && !verificationResult.MessageSignatureStatus) {
+                return Promise.reject('ERR_FAIL_TO_VERIFY_MESSAGE_SIGNATURE');
+            }
+            if (verificationResult.isAssertionSigned && !verificationResult.AssertionSignatureStatus) {
+                return Promise.reject('ERR_FAIL_TO_VERIFY_ASSERTION_SIGNATURE');
+            }
+            if (verificationResult.encrypted && !verificationResult.decrypted) {
+                return Promise.reject('ERR_FAIL_TO_DECRYPT_ASSERTION');
+            }
 
-            extractorFields = getDefaultExtractorFields(parserType, verifiedAssertionNode);
+            // 通用验证失败
+            return Promise.reject('ERR_FAIL_TO_VERIFY_SIGNATURE_OR_DECRYPTION');
         }
-        if (parserType === 'SAMLResponse' && isDecryptRequired && !noSignature) {
-            const result = await libsaml.decryptAssertion(sp, samlContent);
-            samlContent = result[0];
-            extractorFields = getDefaultExtractorFields(parserType, result[1]);
 
+// 更新samlContent为验证后的版本（可能已解密）
+        samlContent = verificationResult.samlContent;
+
+// 根据验证结果设置extractorFields
+        if (verificationResult.assertionContent) {
+            extractorFields = getDefaultExtractorFields(parserType, verificationResult.assertionContent);
+        } else {
+            // 如果没有断言内容（例如注销请求/响应），使用适当的处理方式
+            extractorFields = getDefaultExtractorFields(parserType, null);
         }
+
         const parseResult = {
             samlContent: samlContent,
             extract: extract(samlContent, extractorFields),
