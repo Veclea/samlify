@@ -26,8 +26,6 @@
     ".": {
       "types": "./types/index.d.ts",
       "import": "./build/index.js"
-
-
     }
   },
   "files": [
