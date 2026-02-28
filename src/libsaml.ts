@@ -627,9 +627,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
             let hasUnsafeSignatureAlgorithm = false;
             let unsafeSignatureAlgorithm = ''
-
-           console.log({hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm})
-            console.log("检查结果=====")
             // 特殊情况：带未签名断言的未签名SAML响应，应该拒绝
             if (!isMessageSigned && !isAssertionSigned && !encrypted) {
 
@@ -794,7 +791,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     }
                 }
 
-                    console.log(doc.toString())
+
 
 
 

@@ -230,8 +230,6 @@ async function postFlow(options): Promise<FlowResult> {
 
     // 改进的postFlow函数中关于签名验证的部分
     const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
-/*    console.log(verificationResult)
-    console.log("解析对象")*/
     let resultObject = {
         isMessageSigned:true,//是否有外层的消息签名（Response或者Request 等最外层的签名）
         MessageSignatureStatus:true,//外层的签名是否经过验证
@@ -409,9 +407,6 @@ async function postArtifactFlow(options): Promise<FlowResult> {
 
         // 改进的postFlow函数中关于签名验证的部分
     const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
-    console.log(verificationResult)
-    console.log("最终结果====")
-
 // 检查验证结果
     if (!verificationResult.status) {
         // 如果验证失败，根据具体情况返回错误
