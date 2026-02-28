@@ -226,107 +226,10 @@ async function postFlow(options): Promise<FlowResult> {
     // check status based on different scenarios
     await checkStatus(samlContent, parserType);
     /**检查签名顺序 */
-/*
-    const [verified, verifiedAssertionNode, isDecryptRequired, noSignature] = libsaml.verifySignature(samlContent, verificationOptions);
-    decryptRequired = isDecryptRequired
-    if (isDecryptRequired && noSignature) {
-
-        const result = await libsaml.decryptAssertion(self, samlContent);
-        samlContent = result[0];
-        extractorFields = getDefaultExtractorFields(parserType, result[1]);
-    }
-    if (!verified && !noSignature && !isDecryptRequired) {
-
-        return Promise.reject('ERR_FAIL_TO_VERIFY_ETS_SIGNATURE');
-    }
-    if (!isDecryptRequired) {
-
-        extractorFields = getDefaultExtractorFields(parserType, verifiedAssertionNode);
-    }
-    if (parserType === 'SAMLResponse' && isDecryptRequired && !noSignature) {
-        const result = await libsaml.decryptAssertion(self, samlContent);
-        samlContent = result[0];
-        extractorFields = getDefaultExtractorFields(parserType, result[1]);
-console.log("走这里来了=========")
-        console.log(result[1])
-    }
-
-
-    const parseResult = {
-        samlContent: samlContent,
-        extract: extract(samlContent, extractorFields),
-    };
-    /!**
-     *  Validation part: validate the context of response after signature is verified and decrypted (optional)
-     *!/
-    const targetEntityMetadata = from.entityMeta;
-    const issuer = targetEntityMetadata.getEntityID();
-    const extractedProperties = parseResult.extract;
-    // unmatched issuer
-    if (
-        (parserType === 'LogoutResponse' || parserType === 'SAMLResponse')
-        && extractedProperties
-        && extractedProperties.issuer !== issuer
-    ) {
-        return Promise.reject('ERR_UNMATCH_ISSUER');
-    }
-
-    // invalid session time
-    // only run the verifyTime when `SessionNotOnOrAfter` exists
-    if (
-        parserType === 'SAMLResponse'
-        && extractedProperties.sessionIndex.sessionNotOnOrAfter
-        && !verifyTime(
-            undefined,
-            extractedProperties.sessionIndex.sessionNotOnOrAfter,
-            self.entitySetting.clockDrifts
-        )
-    ) {
-        return Promise.reject('ERR_EXPIRED_SESSION');
-    }
-
-    // invalid time
-    // 2.4.1.2 https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
-    if (
-        parserType === 'SAMLResponse'
-        && extractedProperties.conditions
-        && !verifyTime(
-            extractedProperties.conditions.notBefore,
-            extractedProperties.conditions.notOnOrAfter,
-            self.entitySetting.clockDrifts
-        )
-    ) {
-        return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
-    }
-    //valid destination
-    //There is no validation of the response here. The upper-layer application
-    // should verify the result by itself to see if the destination is equal to the SP acs and
-    // whether the response.id is used to prevent replay attacks.
-    /!*
-        let destination = extractedProperties?.response?.destination
-        let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
-            return item?.Location === destination
-        })
-        if (isExit?.length === 0) {
-            return Promise.reject('ERR_Destination_URL');
-        }
-        if (parserType === 'SAMLResponse') {
-            let destination = extractedProperties?.response?.destination
-            let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-                return item?.Location === destination
-            })
-            if (isExit?.length === 0) {
-                return Promise.reject('ERR_Destination_URL');
-            }
-        }
-    *!/
-
-
-    return Promise.resolve(parseResult);*/
 
 
     // 改进的postFlow函数中关于签名验证的部分
-    const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
+    const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
 /*    console.log(verificationResult)
     console.log("解析对象")*/
     let resultObject = {
@@ -448,7 +351,22 @@ console.log("走这里来了=========")
     */
 
 
-    return Promise.resolve(parseResult);
+    return Promise.resolve({
+        ...parseResult,
+        verificationResult: {
+            isMessageSigned:verificationResult?.isMessageSigned,
+            MessageSignatureStatus:verificationResult?.MessageSignatureStatus,
+            isAssertionSigned:verificationResult?.isAssertionSigned,
+            AssertionSignatureStatus:verificationResult?.AssertionSignatureStatus,
+            encrypted:verificationResult?.encrypted,
+            decrypted:verificationResult?.decrypted,
+            type:verificationResult?.type, // 添加类型字段
+            status:verificationResult?.status,
+
+            hasUnsafeSignatureAlgorithm:verificationResult?.hasUnsafeSignatureAlgorithm,
+            unsafeSignatureAlgorithm:verificationResult?.unsafeSignatureAlgorithm
+        },
+    });
 
 }
 
@@ -490,7 +408,7 @@ async function postArtifactFlow(options): Promise<FlowResult> {
 
 
         // 改进的postFlow函数中关于签名验证的部分
-    const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
+    const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
     console.log(verificationResult)
     console.log("最终结果====")
 

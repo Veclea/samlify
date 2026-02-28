@@ -443,7 +443,7 @@ async function parseLoginResponseResolve(params: { idp: IdentityProvider, sp: Se
         }
         samlContent = verifiedAssertionNode1 as string
         // 改进的postFlow函数中关于签名验证的部分
-        const verificationResult = libsaml.verifySignature(samlContent, verificationOptions,self);
+        const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
 
 // 检查验证结果
         if (!verificationResult.status) {

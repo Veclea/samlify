@@ -8,7 +8,7 @@ import xml from 'xml'
 import utility, {flattenDeep, inflateString, isString} from './utility.js';
 import {createSign, createPrivateKey, createVerify} from 'node:crypto';
 import {algorithms, namespace, wording} from './urn.js';
-import {select} from 'xpath';
+import xpath, {select} from 'xpath';
 import nrsa, {SigningSchemeHash} from 'node-rsa';
 import type {MetadataInterface} from './metadata.js';
 import {SignedXml} from 'xml-crypto';
@@ -162,6 +162,31 @@ const libSaml = () => {
         'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256': 'RSA-SHA256',
         'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512': 'RSA-SHA512',
     };
+
+    /**
+     * 检测是否使用了不安全的SHA1系列签名算法
+     * @param signatureAlgorithm 签名算法URI
+     * @returns {Object} 包含是否使用不安全算法和具体算法名称的对象
+     */
+    function checkUnsafeSignatureAlgorithm(signatureAlgorithm: string) {
+        const unsafeAlgorithms = [
+            'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
+            'http://www.w3.org/2000/09/xmldsig#dsa-sha1',
+            'http://www.w3.org/2000/09/xmldsig#hmac-sha1',
+            'http://www.w3.org/2000/09/xmldsig#sha1'
+        ];
+
+        const isUnsafe = unsafeAlgorithms.some(alg =>
+            signatureAlgorithm.toLowerCase().includes('sha1') ||
+            signatureAlgorithm === 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
+        );
+
+        return {
+            hasUnsafeSignatureAlgorithm: isUnsafe,
+            unsafeSignatureAlgorithm: isUnsafe ? signatureAlgorithm : null
+        };
+    }
+
     /**
      * @desc Default login request template
      * @type {LoginRequestTemplate}
@@ -360,6 +385,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
         defaultLogoutResponseTemplate,
         defaultAttributeValueTemplate,
         validateAndInflateSamlResponse,
+        checkUnsafeSignatureAlgorithm,
         /**
          * @desc Replace the tag (e.g. {tag}) inside the raw XML
          * @param  {string} rawXML      raw XML string used to do keyword replacement
@@ -528,7 +554,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          * @param self
          * @returns 验证结果对象
          */
-        verifySignature(xml: string, opts: SignatureVerifierOptions, self: any) {
+        async verifySignature(xml: string, opts: SignatureVerifierOptions, self: any) {
             const { dom } = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
             const docParser = new DOMParser();
@@ -599,8 +625,14 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     }
             }
 
+            let hasUnsafeSignatureAlgorithm = false;
+            let unsafeSignatureAlgorithm = ''
+
+           console.log({hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm})
+            console.log("检查结果=====")
             // 特殊情况：带未签名断言的未签名SAML响应，应该拒绝
             if (!isMessageSigned && !isAssertionSigned && !encrypted) {
+
                 return {
                     isMessageSigned,
                     MessageSignatureStatus,
@@ -611,7 +643,9 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     type, // 添加类型字段
                     status: false, // 明确拒绝未签名未加密的响应
                     samlContent,
-                    assertionContent
+                    assertionContent,
+                    hasUnsafeSignatureAlgorithm,
+                    unsafeSignatureAlgorithm
                 };
             }
 
@@ -622,6 +656,13 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     const result = this.decryptAssertionSync(self, xml, opts);
                     // 更新文档为解密后的版本
                     samlContent = result[0];
+                    let res =  await this.isValidXml(samlContent).catch((error) => {
+                        return Promise.reject('ERR_EXCEPTION_VALIDATE_XML');
+                    });
+
+                    if (res !== true) {
+                        return Promise.reject('ERR_EXCEPTION_VALIDATE_XML');
+                    }
                     assertionContent = result[1];
 
                     // 更新验证状态
@@ -634,6 +675,11 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
                     // 2. 验证最外层消息签名（使用解密后的文档）
                     const signatureNode = messageSignatureNode[0];
+                    // @ts-expect-error misssing Node properties are not needed
+                    const signatureAlgorithm = xpath.select1(".//*[local-name(.)='SignatureMethod']/@Algorithm", signatureNode) as any;
+                    let   checkResult = checkUnsafeSignatureAlgorithm(signatureAlgorithm.value || '');
+                    hasUnsafeSignatureAlgorithm = checkResult.hasUnsafeSignatureAlgorithm
+                    unsafeSignatureAlgorithm = checkResult.unsafeSignatureAlgorithm ?? ""
                     const sig = new SignedXml();
 
                     if (!opts.keyFile && !opts.metadata) {
@@ -671,16 +717,14 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                             sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
                         }
                     }
-                    console.log(opts.signatureAlgorithm)
-                  console.log("签名算法=====")
+
+
                     sig.signatureAlgorithm = opts.signatureAlgorithm!;
                     // @ts-expect-error misssing Node properties are not needed
                     sig.loadSignature(signatureNode);
 
                     // 使用解密后的文档验证最外层签名.默认采用的都是采用的先签名后加密的顺序，对应sp应该先解密 然后验证签名。 如果解密后验证外层签名失败有可能是先加密后签名，此时sp应该直接验证没解密的外层签名
                     MessageSignatureStatus = sig.checkSignature(decryptedDoc.toString());
-                    console.log(MessageSignatureStatus)
-                    console.log("验证MessageSignatureStatus==========================")
                     if (!MessageSignatureStatus) {
                         /** 签名验证失败 再直接验证外层*/
 
@@ -695,7 +739,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
                     // 3. 验证解密后断言的签名（如果存在）
                     if (isAssertionSigned && AssertionSignatureStatus) {
-                     /*   console.log("断言签名验证已通过");*/
+                        /*   console.log("断言签名验证已通过");*/
                     } else if (isAssertionSigned && !AssertionSignatureStatus) {
                         throw new Error('ERR_FAILED_TO_VERIFY_ASSERTION_SIGNATURE_AFTER_DECRYPTION');
                     }
@@ -707,6 +751,11 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             // 处理最外层有签名但断言未加密的情况
             else if (isMessageSigned && !encrypted) {
                 const signatureNode = messageSignatureNode[0];
+                // @ts-expect-error misssing Node properties are not needed
+                const signatureAlgorithm = xpath.select1(".//*[local-name(.)='SignatureMethod']/@Algorithm", signatureNode) as any;
+                let   checkResult = checkUnsafeSignatureAlgorithm(signatureAlgorithm.value || '');
+                hasUnsafeSignatureAlgorithm = checkResult.hasUnsafeSignatureAlgorithm
+                unsafeSignatureAlgorithm = checkResult.unsafeSignatureAlgorithm ?? ""
                 const sig = new SignedXml();
 
                 if (!opts.keyFile && !opts.metadata) {
@@ -745,7 +794,12 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     }
                 }
 
-                sig.signatureAlgorithm = opts.signatureAlgorithm!;
+                    console.log(doc.toString())
+
+
+
+
+                sig.signatureAlgorithm = signatureAlgorithm.value!;
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);
                 MessageSignatureStatus = sig.checkSignature(doc.toString());
@@ -761,6 +815,11 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             // 验证断言级签名（如果存在且未加密）
             if (isAssertionSigned && !encrypted) {
                 const signatureNode = assertionSignatureNode[0];
+                // @ts-expect-error misssing Node properties are not needed
+                const signatureAlgorithm = xpath.select1(".//*[local-name(.)='SignatureMethod']/@Algorithm", signatureNode) as any;
+                let   checkResult = checkUnsafeSignatureAlgorithm(signatureAlgorithm.value || '');
+                hasUnsafeSignatureAlgorithm = checkResult.hasUnsafeSignatureAlgorithm
+                unsafeSignatureAlgorithm = checkResult.unsafeSignatureAlgorithm ?? ""
                 const sig = new SignedXml();
 
                 if (!opts.keyFile && !opts.metadata) {
@@ -799,6 +858,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     }
                 }
 
+                // 检测不安全的签名算法
                 sig.signatureAlgorithm = opts.signatureAlgorithm!;
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);
@@ -833,6 +893,13 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 // 解密断言
                 try {
                     const result = this.decryptAssertionSync(self, xml, opts);
+                    let res =  await this.isValidXml(samlContent).catch((error) => {
+                        return Promise.reject('ERR_EXCEPTION_VALIDATE_XML');
+                    });
+
+                    if (res !== true) {
+                        return Promise.reject('ERR_EXCEPTION_VALIDATE_XML');
+                    }
                     samlContent = result[0];
                     assertionContent = result[1];
                     decrypted = true;
@@ -856,6 +923,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 (!isAssertionSigned || AssertionSignatureStatus) &&
                 (!encrypted || decrypted);
 
+            // 最终检测不安全的签名算法
+
             return {
                 isMessageSigned,
                 MessageSignatureStatus,
@@ -866,7 +935,9 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 type, // 添加类型字段
                 status,
                 samlContent,
-                assertionContent
+                assertionContent,
+                hasUnsafeSignatureAlgorithm,
+                unsafeSignatureAlgorithm
             };
         },
 
@@ -944,6 +1015,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 const sig = new SignedXml();
                 let verified = false;
 
+                // 检测不安全的签名算法
+                const {hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm} = checkUnsafeSignatureAlgorithm(opts.signatureAlgorithm || '');
                 sig.signatureAlgorithm = opts.signatureAlgorithm!;
                 if (!opts.keyFile && !opts.metadata) {
                     throw new Error('ERR_UNDEFINED_SIGNATURE_VERIFIER_OPTIONS');
@@ -1006,31 +1079,31 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                         const assertions = select("./*[local-name()='Assertion']", rootNode);
 
                         if (encryptedAssert.length === 1) {
-                            return [true, encryptedAssert[0].toString(), true, false];
+                            return [true, encryptedAssert[0].toString(), true, false, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm];
                         }
 
                         if (assertions.length === 1) {
-                            return [true, assertions[0].toString(), false, false];
+                            return [true, assertions[0].toString(), false, false, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm];
                         }
-                        return [true, null, false, true]; // 签名验证成功但未找到断言
+                        return [true, null, false, true, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm]; // 签名验证成功但未找到断言
 
                     case 'Assertion':
-                        return [true, rootNode.toString(), false, false];
+                        return [true, rootNode.toString(), false, false, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm];
 
                     case 'EncryptedAssertion':
-                        return [true, rootNode.toString(), true, false];
+                        return [true, rootNode.toString(), true, false, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm];
 
                     case 'ArtifactResolve':
                     case 'ArtifactResponse':
                         // 提取SOAP消息内部的实际内容
-                        return [true, rootNode.toString(), false, false];
+                        return [true, rootNode.toString(), false, false, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm];
 
                     default:
-                        return [true, null, false, true]; // 签名验证成功但未找到可识别的内容
+                        return [true, null, false, true, hasUnsafeSignatureAlgorithm, unsafeSignatureAlgorithm]; // 签名验证成功但未找到可识别的内容
                 }
             }
 
-            return [false, null, encryptedAssertions.length > 0, false];
+            return [false, null, encryptedAssertions.length > 0, false, false, null];
         },
 
         /**
@@ -1288,16 +1361,22 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             if (!decryptedResult) {
                 throw new Error('ERR_UNDEFINED_DECRYPTED_ASSERTION');
             }
-
+             let hasUnsafeSignatureAlgorithm = false
+             let unsafeSignatureAlgorithm = ""
             // 解密完成后，检查解密后的断言是否还有签名需要验证
             const decryptedAssertionDoc = dom.parseFromString(decryptedResult, 'application/xml');
-           let AssertionSignatureStatus = false
+            let AssertionSignatureStatus = false
             // 检查解密后的断言是否有签名
             // @ts-expect-error misssing Node properties are not needed
             const assertionSignatureNode = select("/*[local-name(.)='Assertion']/*[local-name(.)='Signature']", decryptedAssertionDoc);
             if (assertionSignatureNode.length > 0 && opts) {
                 // 解密后的断言有签名，需要验证
                 const signatureNode = assertionSignatureNode[0];
+                // @ts-expect-error misssing Node properties are not needed
+                const signatureAlgorithm = xpath.select1(".//*[local-name(.)='SignatureMethod']/@Algorithm", signatureNode) as any;
+                let   checkResult = checkUnsafeSignatureAlgorithm(signatureAlgorithm.value || '');
+                hasUnsafeSignatureAlgorithm = checkResult.hasUnsafeSignatureAlgorithm
+                unsafeSignatureAlgorithm = checkResult.unsafeSignatureAlgorithm ?? ""
                 const sig = new SignedXml();
 
                 if (!opts.keyFile && !opts.metadata) {
@@ -1336,6 +1415,10 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                     }
                 }
 
+                // 检测不安全的签名算法
+                let  checkSafeResult = checkUnsafeSignatureAlgorithm(opts.signatureAlgorithm || '');
+                hasUnsafeSignatureAlgorithm = checkSafeResult.hasUnsafeSignatureAlgorithm
+                unsafeSignatureAlgorithm = checkSafeResult.unsafeSignatureAlgorithm ?? ""
                 sig.signatureAlgorithm = opts.signatureAlgorithm!;
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);
@@ -1343,8 +1426,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 const assertionDocForVerification = dom.parseFromString(decryptedResult, 'application/xml');
                 const assertionValid = sig.checkSignature(assertionDocForVerification.toString());
                 AssertionSignatureStatus = assertionValid
-                console.log(AssertionSignatureStatus)
-                console.log("验证通过了====")
                 if (!assertionValid) {
                     throw new Error('ERR_FAILED_TO_VERIFY_DECRYPTED_ASSERTION_SIGNATURE');
                 }
@@ -1357,7 +1438,9 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
             return [doc.toString(), decryptedResult,{
                 isAssertionSigned:!!(assertionSignatureNode.length > 0 && opts),
-                AssertionSignatureStatus:AssertionSignatureStatus
+                AssertionSignatureStatus:AssertionSignatureStatus,
+                hasUnsafeSignatureAlgorithm,
+                unsafeSignatureAlgorithm
             }];
         },
         /**
