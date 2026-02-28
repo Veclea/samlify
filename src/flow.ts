@@ -338,7 +338,8 @@ console.log("走这里来了=========")
         decrypted:true ,//断言加密后断言是否解密成功，
         status:true,//是否全部通过验证,
         samlContent:'xxx',//xxx是通过验证后 解密后的整个响应，
-        assertionContent:'xxx',//xxx是通过验证后 解密后的整个响应中的assertion 断言部分字符串
+        assertionContent:'xxx',//xxx是通过验证后 解密后的整个响应中的assertion 断言部分字符串,
+        signMethod:"",//xxx是通过验证后 解密后的整个响应中的assertion 断言部分字符串,
     }
 // 检查验证结果
 
