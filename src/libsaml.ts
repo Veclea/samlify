@@ -455,7 +455,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          * @desc Construct the XML signature for POST binding
          * @param  {string} rawSamlMessage      request/response xml string
          * @param  {string} referenceTagXPath    reference uri
-         * @param  {string} privateKey           declares the private key
+         * @param  {string} privateKey           declares the private key-
          * @param  {string} passphrase           passphrase of the private key [optional]
          * @param  {string|buffer} signingCert   signing certificate
          * @param  {string} signatureAlgorithm   signature algorithm
