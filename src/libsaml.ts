@@ -627,6 +627,8 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
 
             let hasUnsafeSignatureAlgorithm = false;
             let unsafeSignatureAlgorithm = ''
+
+
             // 特殊情况：带未签名断言的未签名SAML响应，应该拒绝
             if (!isMessageSigned && !isAssertionSigned && !encrypted) {
 
@@ -790,12 +792,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                         sig.publicCert = this.getKeyInfo(metadataCert[0]).getKey();
                     }
                 }
-
-
-
-
-
-
                 sig.signatureAlgorithm = signatureAlgorithm.value!;
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);

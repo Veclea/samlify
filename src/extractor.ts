@@ -193,7 +193,24 @@ export const loginResponseFields: ((assertion: any) => ExtractorFields) = assert
     attributePath: ['AttributeValue'],
     attributes: [],
     shortcut: assertion
-  }
+  },
+    {
+        key: 'subjectConfirmation',
+        localPath: ['Assertion', 'Subject', 'SubjectConfirmation', 'SubjectConfirmationData'],
+        attributes: ['Recipient', 'InResponseTo', 'NotOnOrAfter'],
+        shortcut: assertion
+    },
+    {
+        key: 'oneTimeUse',
+        localPath: ['Assertion', 'Conditions', 'OneTimeUse'],
+        attributes: [],
+        shortcut: assertion
+    },
+    {
+        key: 'status',
+        localPath: ['Response', 'Status', 'StatusCode'],
+        attributes: ['Value']
+    },
 ];
 
 export const logoutRequestFields: ExtractorFields = [

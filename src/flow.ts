@@ -329,8 +329,9 @@ async function postFlow(options): Promise<FlowResult> {
 //There is no validation of the response here. The upper-layer application
 // should verify the result by itself to see if the destination is equal to the SP acs and
 // whether the response.id is used to prevent replay attacks.
-    /*
-        let destination = extractedProperties?.response?.destination
+    console.log(extractedProperties)
+    console.log("牛逼属性")
+/*        let destination = extractedProperties?.response?.destination
         let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
             return item?.Location === destination
         })
@@ -345,10 +346,94 @@ async function postFlow(options): Promise<FlowResult> {
             if (isExit?.length === 0) {
                 return Promise.reject('ERR_Destination_URL');
             }
+        }*/
+
+// ============================
+// VALIDATE Destination & Recipient
+// ============================
+
+    const { type } = verificationResult;
+    const { response, subjectConfirmation } = extractedProperties || {};
+
+// 获取 SP 配置的所有合法 ACS URLs（用于比对）
+    const validACSUrls = (self.entitySetting?.assertionConsumerService || [])
+        .map((item: any) => item.Location)
+        .filter(Boolean);
+
+    /**
+     * Helper: Check if a given URL is in the list of valid ACS endpoints
+     */
+    function isValidACSEndpoint(url: string | undefined): boolean {
+        return url != null && validACSUrls.includes(url);
+    }
+
+// 根据消息类型执行不同的验证
+    switch (type) {
+        case 'Response': // SAML Response (Login)
+        {
+            // 1. 验证协议层 Destination（必须匹配 ACS）
+            const destination = response?.destination;
+            if (!isValidACSEndpoint(destination)) {
+                return Promise.reject('ERR_INVALID_DESTINATION');
+            }
+
+            // 2. 验证断言层 Recipient（必须匹配 ACS，且通常应等于 Destination）
+            const recipient = subjectConfirmation?.recipient;
+            if (!isValidACSEndpoint(recipient)) {
+                return Promise.reject('ERR_INVALID_RECIPIENT');
+            }
+
+            // 可选：强制 Destination === Recipient（推荐）
+            if (destination !== recipient) {
+                // 注意：某些 IdP 可能不严格一致，但安全起见建议开启
+                 return Promise.reject('ERR_DESTINATION_RECIPIENT_MISMATCH');
+            }
         }
-    */
+            break;
 
+        case 'LogoutRequest': // IdP 发起的单点登出
+        {
+            // LogoutRequest 是 IdP → SP，SP 是接收方
+            // 必须验证 Destination 是否为 SP 的 SLO endpoint（Single Logout Service）
+            const destination = response?.destination; // 注意：LogoutRequest 的 root 元素是 <samlp:LogoutRequest>
+            const validSLOUrls = (self.entitySetting?.singleLogoutService || [])
+                .map((item: any) => item.Location)
+                .filter(Boolean);
 
+            if (destination && !validSLOUrls.includes(destination)) {
+                return Promise.reject('ERR_INVALID_LOGOUT_DESTINATION');
+            }
+
+            // LogoutRequest 通常**不包含 Assertion**，所以无 Recipient
+            // 如果有嵌套断言（罕见），可额外处理，但一般不需要
+        }
+            break;
+
+        case 'LogoutResponse': // SP → IdP 的登出响应
+        {
+            // LogoutResponse 是 SP → IdP，IdP 是接收方
+            // 此时 SP 是发送方，**不应验证 Destination 是否属于自身**
+            // 而应由 IdP 验证。因此 SP 端通常**跳过 Destination 验证**
+            // 但如果你作为 SP 也要校验（比如防止发错），可对比 IdP 的 SLO URL
+            // —— 但你的 entityMeta 是 SP 自身，没有 IdP 的 SLO，所以一般不验
+
+            // ✅ 所以：LogoutResponse 在 SP 端通常**无需验证 Destination/Recipient**
+        }
+            break;
+
+        case 'AuthnRequest': // SP → IdP 的认证请求
+        {
+            // AuthnRequest 是 SP 发出的，不是接收的
+            // 此验证逻辑运行在 SP 接收响应时，**不会收到 AuthnRequest**
+            // 所以这个 case 实际不会触发，保留仅为完整性
+        }
+            break;
+
+        case 'Unknown':
+        default:
+            // 未知类型，保守拒绝
+            return Promise.reject('ERR_UNKNOWN_SAML_MESSAGE_TYPE');
+    }
     return Promise.resolve({
         ...parseResult,
         verificationResult: {
@@ -407,6 +492,8 @@ async function postArtifactFlow(options): Promise<FlowResult> {
 
         // 改进的postFlow函数中关于签名验证的部分
     const verificationResult = await libsaml.verifySignature(samlContent, verificationOptions,self);
+
+
 // 检查验证结果
     if (!verificationResult.status) {
         // 如果验证失败，根据具体情况返回错误
@@ -673,7 +760,8 @@ export function checkStatus(content: string, parserType: string, soap?: boolean)
     }
 
     // returns a detailed error for two-tier error code
-    throw new Error(`ERR_FAILED_STATUS with top tier code: ${top}, second tier code: ${second}`);
+    throw new Error('ERR_UNDEFINED_STATUS');
+  /*  throw new Error(`ERR_FAILED_STATUS with top tier code: ${top}, second tier code: ${second}`);*/
 }
 
 export function flow(options): Promise<FlowResult> {
