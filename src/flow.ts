@@ -164,7 +164,7 @@ async function redirectFlow(options): Promise<FlowResult> {
             self.entitySetting.clockDrifts
         )
     ) {
-        return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
+        return Promise.reject('ERR_CONDITION_UNCONFIRMED');
     }
 
     if (parserType === 'SAMLResponse') {
@@ -323,8 +323,25 @@ async function postFlow(options): Promise<FlowResult> {
             self.entitySetting.clockDrifts
         )
     ) {
+        return Promise.reject('ERR_CONDITION_SESSION');
+    }
+
+    // invalid subjectConfirmation time
+// invalid time
+// 2.4.1.2 https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+    if (
+        parserType === 'SAMLResponse'
+        && extractedProperties.subjectConfirmation
+        && !verifyTime(
+            undefined,
+            extractedProperties.subjectConfirmation.notOnOrAfter,
+            self.entitySetting.clockDrifts
+        )
+    ) {
         return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
     }
+
+
 //valid destination
 //There is no validation of the response here. The upper-layer application
 // should verify the result by itself to see if the destination is equal to the SP acs and
@@ -436,7 +453,7 @@ async function postFlow(options): Promise<FlowResult> {
     }
     return Promise.resolve({
         ...parseResult,
-        verificationResult: {
+            verificationResult: {
             isMessageSigned:verificationResult?.isMessageSigned,
             MessageSignatureStatus:verificationResult?.MessageSignatureStatus,
             isAssertionSigned:verificationResult?.isAssertionSigned,
@@ -445,7 +462,6 @@ async function postFlow(options): Promise<FlowResult> {
             decrypted:verificationResult?.decrypted,
             type:verificationResult?.type, // 添加类型字段
             status:verificationResult?.status,
-
             hasUnsafeSignatureAlgorithm:verificationResult?.hasUnsafeSignatureAlgorithm,
             unsafeSignatureAlgorithm:verificationResult?.unsafeSignatureAlgorithm
         },
@@ -569,7 +585,7 @@ async function postArtifactFlow(options): Promise<FlowResult> {
             self.entitySetting.clockDrifts
         )
     ) {
-        return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
+        return Promise.reject('ERR_CONDITION_UNCONFIRMED');
     }
     //valid destination
     //There is no validation of the response here. The upper-layer application
@@ -714,7 +730,7 @@ async function postSimpleSignFlow(options): Promise<FlowResult> {
             self.entitySetting.clockDrifts
         )
     ) {
-        return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
+        return Promise.reject('ERR_CONDITION_UNCONFIRMED');
     }
 
     if (parserType === 'SAMLResponse') {
