@@ -373,6 +373,8 @@ async function postFlow(options): Promise<FlowResult> {
     const { response, subjectConfirmation } = extractedProperties || {};
 
 // 获取 SP 配置的所有合法 ACS URLs（用于比对）
+  console.log(self.entitySetting?.assertionConsumerService)
+  console.log("这是啥=========================")
     const validACSUrls = (self.entitySetting?.assertionConsumerService || [])
         .map((item: any) => item.Location)
         .filter(Boolean);
@@ -381,6 +383,9 @@ async function postFlow(options): Promise<FlowResult> {
      * Helper: Check if a given URL is in the list of valid ACS endpoints
      */
     function isValidACSEndpoint(url: string | undefined): boolean {
+      console.log(validACSUrls)
+      console.log(url)
+      console.log("我要看下====")
         return url != null && validACSUrls.includes(url);
     }
 
