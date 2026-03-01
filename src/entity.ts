@@ -79,6 +79,8 @@ export default class Entity {
   */
   constructor(entitySetting: EntityConstructor, entityType: 'idp' | 'sp') {
     this.entitySetting = Object.assign({}, defaultEntitySetting, entitySetting);
+    console.log(    this.entitySetting)
+      console.log("最开始的=====")
     const metadata = entitySetting.metadata || entitySetting;
     switch (entityType) {
       case 'idp':
@@ -89,6 +91,8 @@ export default class Entity {
         break;
       case 'sp':
         this.entityMeta = SpMetadata(metadata);
+        console.log(this.entityMeta)
+          console.log("我想看一下====")
         // setting with metadata has higher precedence
         this.entitySetting.authnRequestsSigned = this.entityMeta.isAuthnRequestSigned();
         this.entitySetting.wantAssertionsSigned = this.entityMeta.isWantAssertionsSigned();

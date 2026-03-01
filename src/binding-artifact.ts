@@ -520,28 +520,7 @@ async function parseLoginResponseResolve(params: { idp: IdentityProvider, sp: Se
         ) {
             return Promise.reject('ERR_SUBJECT_UNCONFIRMED');
         }
-        //valid destination
-        //There is no validation of the response here. The upper-layer application
-        // should verify the result by itself to see if the destination is equal to the SP acs and
-        // whether the response.id is used to prevent replay attacks.
-        /*
-            let destination = extractedProperties?.response?.destination
-            let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
-                return item?.Location === destination
-            })
-            if (isExit?.length === 0) {
-                return Promise.reject('ERR_Destination_URL');
-            }
-            if (parserType === 'SAMLResponse') {
-                let destination = extractedProperties?.response?.destination
-                let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-                    return item?.Location === destination
-                })
-                if (isExit?.length === 0) {
-                    return Promise.reject('ERR_Destination_URL');
-                }
-            }
-        */
+
 
 
         return Promise.resolve(parseResult);

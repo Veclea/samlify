@@ -169,8 +169,8 @@ async function redirectFlow(options): Promise<FlowResult> {
 
     if (parserType === 'SAMLResponse') {
         let destination = extractedProperties?.response?.destination
-        let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-            return item?.Location === destination
+        let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { location: any; }) => {
+            return item?.location === destination
         })
         if (isExit?.length === 0) {
             return Promise.reject('ERR_Destination_URL');
@@ -348,22 +348,7 @@ async function postFlow(options): Promise<FlowResult> {
 // whether the response.id is used to prevent replay attacks.
     console.log(extractedProperties)
     console.log("牛逼属性")
-/*        let destination = extractedProperties?.response?.destination
-        let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
-            return item?.Location === destination
-        })
-        if (isExit?.length === 0) {
-            return Promise.reject('ERR_Destination_URL');
-        }
-        if (parserType === 'SAMLResponse') {
-            let destination = extractedProperties?.response?.destination
-            let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-                return item?.Location === destination
-            })
-            if (isExit?.length === 0) {
-                return Promise.reject('ERR_Destination_URL');
-            }
-        }*/
+
 
 // ============================
 // VALIDATE Destination & Recipient
@@ -373,10 +358,10 @@ async function postFlow(options): Promise<FlowResult> {
     const { response, subjectConfirmation } = extractedProperties || {};
 
 // 获取 SP 配置的所有合法 ACS URLs（用于比对）
-  console.log(self.entitySetting?.assertionConsumerService)
+  console.log(self?.entityMeta?.meta?.assertionConsumerService)
   console.log("这是啥=========================")
-    const validACSUrls = (self.entitySetting?.assertionConsumerService || [])
-        .map((item: any) => item.Location)
+    const validACSUrls = (self?.entityMeta?.meta?.assertionConsumerService || [])
+        .map((item: any) => item.location)
         .filter(Boolean);
 
     /**
@@ -418,8 +403,8 @@ async function postFlow(options): Promise<FlowResult> {
             // LogoutRequest 是 IdP → SP，SP 是接收方
             // 必须验证 Destination 是否为 SP 的 SLO endpoint（Single Logout Service）
             const destination = response?.destination; // 注意：LogoutRequest 的 root 元素是 <samlp:LogoutRequest>
-            const validSLOUrls = (self.entitySetting?.singleLogoutService || [])
-                .map((item: any) => item.Location)
+            const validSLOUrls = (self?.entityMeta?.meta?.singleLogoutService || [])
+                .map((item: any) => item.location)
                 .filter(Boolean);
 
             if (destination && !validSLOUrls.includes(destination)) {
@@ -597,16 +582,16 @@ async function postArtifactFlow(options): Promise<FlowResult> {
     // should verify the result by itself to see if the destination is equal to the SP acs and
     // whether the response.id is used to prevent replay attacks.
     let destination = extractedProperties?.response?.destination
-    let isExit = self.entitySetting?.assertionConsumerService?.filter((item) => {
-        return item?.Location === destination
+    let isExit = self?.entityMeta?.meta?.assertionConsumerService?.filter((item) => {
+        return item?.location === destination
     })
     if (isExit?.length === 0) {
         return Promise.reject('ERR_Destination_URL');
     }
     if (parserType === 'SAMLResponse') {
         let destination = extractedProperties?.response?.destination
-        let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-            return item?.Location === destination
+        let isExit = self?.entityMeta?.meta?.assertionConsumerService?.filter((item: { location: any; }) => {
+            return item?.location === destination
         })
         if (isExit?.length === 0) {
             return Promise.reject('ERR_Destination_URL');
@@ -740,8 +725,8 @@ async function postSimpleSignFlow(options): Promise<FlowResult> {
 
     if (parserType === 'SAMLResponse') {
         let destination = extractedProperties?.response?.destination
-        let isExit = self.entitySetting?.assertionConsumerService?.filter((item: { Location: any; }) => {
-            return item?.Location === destination
+        let isExit = self?.entityMeta?.meta?.assertionConsumerService?.filter((item: { location: any; }) => {
+            return item?.location === destination
         })
         if (isExit?.length === 0) {
             return Promise.reject('ERR_Destination_URL');

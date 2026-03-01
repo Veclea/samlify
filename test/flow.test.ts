@@ -191,6 +191,8 @@ const sampleRequestInfo = {extract: {request: {id: 'request_id'}}};
 // Define entities
 const idp = identityProvider(defaultIdpConfig);
 const sp = serviceProvider(defaultSpConfig);
+console.log(sp)
+console.log("这是sp====")
 const idpNoEncrypt = identityProvider({...defaultIdpConfig, isAssertionEncrypted: false});
 const idpcustomNoEncrypt = identityProvider({...defaultIdpConfig, isAssertionEncrypted: false, loginResponseTemplate});
 const idpcustom = identityProvider({...defaultIdpConfig, loginResponseTemplate});

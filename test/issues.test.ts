@@ -24,7 +24,7 @@ test('#31 query param for sso/slo is SamlRequest', () => {
 });
 
 test('#31 query param for sso/slo is SamlResponse', () => {
-  expect(getQueryParamByType('SAMLResponse')).toBe(wording.urlParams.samlResponse);
+  expect(getQueryParamByType('SAMLResponse')).toBe(wording.urlParams.samlResponse);/**/
   expect(getQueryParamByType('LogoutResponse')).toBe(wording.urlParams.samlResponse);
 });
 
