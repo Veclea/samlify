@@ -113,7 +113,6 @@ export function createArt(
  */
 export function parseArt(artifact: string) {
     // 解码 Base64
-    console.log(Object.prototype.toString.call(artifact))
     if(Object.prototype.toString.call(artifact) !== '[object String]'){
         return
     }

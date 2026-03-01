@@ -796,9 +796,6 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
                 // @ts-expect-error misssing Node properties are not needed
                 sig.loadSignature(signatureNode);
                 MessageSignatureStatus = sig.checkSignature(doc.toString());
-
-                    console.log(MessageSignatureStatus)
-              console.log("这是结果====")
                 if (!MessageSignatureStatus) {
                     throw new Error('ERR_FAILED_TO_VERIFY_MESSAGE_SIGNATURE');
                 }

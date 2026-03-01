@@ -191,8 +191,6 @@ const sampleRequestInfo = {extract: {request: {id: 'request_id'}}};
 // Define entities
 const idp = identityProvider(defaultIdpConfig);
 const sp = serviceProvider(defaultSpConfig);
-console.log(sp)
-console.log("这是sp====")
 const idpNoEncrypt = identityProvider({...defaultIdpConfig, isAssertionEncrypted: false});
 const idpcustomNoEncrypt = identityProvider({...defaultIdpConfig, isAssertionEncrypted: false, loginResponseTemplate});
 const idpcustom = identityProvider({...defaultIdpConfig, loginResponseTemplate});
@@ -2754,10 +2752,6 @@ test('should not throw ERR_SUBJECT_UNCONFIRMED for the expired SAML response wit
 
     expect(true).toBe(true);
   } catch (e) {
-    console.log(e);
-    console.log("这是什么鸡毛===========================")
-    console.log("这是什么鸡毛===========================")
-    console.log("这是什么鸡毛===========================")
     expect.fail('Should not have thrown an error');
   } finally {
     tk.reset();

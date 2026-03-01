@@ -342,12 +342,7 @@ async function postFlow(options): Promise<FlowResult> {
     }
 
 
-//valid destination
-//There is no validation of the response here. The upper-layer application
-// should verify the result by itself to see if the destination is equal to the SP acs and
-// whether the response.id is used to prevent replay attacks.
-    console.log(extractedProperties)
-    console.log("牛逼属性")
+
 
 
 // ============================
@@ -358,8 +353,6 @@ async function postFlow(options): Promise<FlowResult> {
     const { response, subjectConfirmation } = extractedProperties || {};
 
 // 获取 SP 配置的所有合法 ACS URLs（用于比对）
-  console.log(self?.entityMeta?.meta?.assertionConsumerService)
-  console.log("这是啥=========================")
     const validACSUrls = (self?.entityMeta?.meta?.assertionConsumerService || [])
         .map((item: any) => item.location)
         .filter(Boolean);
@@ -368,9 +361,6 @@ async function postFlow(options): Promise<FlowResult> {
      * Helper: Check if a given URL is in the list of valid ACS endpoints
      */
     function isValidACSEndpoint(url: string | undefined): boolean {
-      console.log(validACSUrls)
-      console.log(url)
-      console.log("我要看下====")
         return url != null && validACSUrls.includes(url);
     }
 

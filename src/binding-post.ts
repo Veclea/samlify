@@ -179,8 +179,6 @@ async function base64LoginResponse(requestInfo: any = {}, entity: any, user: any
       });
     }
 
-    // console.debug('after assertion signed', rawSamlResponse);
-
     // SAML response must be signed sign message first, then encrypt
     if (!encryptThenSign && (spSetting.wantMessageSigned || !metadata.sp.isWantAssertionsSigned())) {
       // console.debug('sign then encrypt and sign entire message');
