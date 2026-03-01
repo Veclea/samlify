@@ -8,6 +8,8 @@ interface Context extends ValidatorContext, DOMParserContext {}
 // 定义函数类型
 type ValidateFunction = (xml: string, isSoap?: boolean) => Promise<any>;
 
+
+
 // 使用类型别名定义接口
 interface ValidatorContext {
   validate: ValidateFunction;
