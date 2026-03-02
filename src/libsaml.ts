@@ -554,6 +554,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
          * @param self
          * @returns 验证结果对象
          */
+
         async verifySignature(xml: string, opts: SignatureVerifierOptions, self: any) {
             const { dom } = getContext();
             const doc = dom.parseFromString(xml, 'application/xml');
@@ -765,7 +766,7 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             else if (isMessageSigned && !encrypted) {
                 const signatureNode = messageSignatureNode[0];
                 // @ts-expect-error misssing Node properties are not needed
-                const signatureAlgorithm = xpath.select1(".//*[local-name(.)='SignatureMethod']/@Algorithm", signatureNode) as any;
+                const signatureAlgorithm = xpath.select1(".//*[local-name()='SignedInfo']/*[local-name()='SignatureMethod']/@Algorithm", signatureNode) as any;
                 let   checkResult = checkUnsafeSignatureAlgorithm(signatureAlgorithm.value || '');
                 hasUnsafeSignatureAlgorithm = checkResult.hasUnsafeSignatureAlgorithm
                 unsafeSignatureAlgorithm = checkResult.unsafeSignatureAlgorithm ?? ""
