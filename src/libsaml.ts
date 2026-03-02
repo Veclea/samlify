@@ -560,10 +560,24 @@ xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="{ID}"
             const docParser = new DOMParser();
 
             // 定义各种XPath路径
-            const messageSignatureXpath = "/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Signature']";
-            const assertionSignatureXpath = "/*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/*[local-name(.)='Assertion']/*[local-name(.)='Signature']";
-            const wrappingElementsXPath = "/*[contains(local-name(), 'Response')]/*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='SubjectConfirmation']/*[local-name(.)='SubjectConfirmationData']//*[local-name(.)='Assertion' or local-name(.)='Signature']";
-            const encryptedAssertionsXPath = "/*[contains(local-name(), 'Response')]/*[local-name(.)='EncryptedAssertion']";
+/*            const messageSignatureXpath = "/!*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/!*[local-name(.)='Signature']";
+            const assertionSignatureXpath = "/!*[contains(local-name(), 'Response') or contains(local-name(), 'Request')]/!*[local-name(.)='Assertion']/!*[local-name(.)='Signature']";
+            const wrappingElementsXPath = "/!*[contains(local-name(), 'Response')]/!*[local-name(.)='Assertion']/!*[local-name(.)='Subject']/!*[local-name(.)='SubjectConfirmation']/!*[local-name(.)='SubjectConfirmationData']//!*[local-name(.)='Assertion' or local-name(.)='Signature']";
+            const encryptedAssertionsXPath = "/!*[contains(local-name(), 'Response')]/!*[local-name(.)='EncryptedAssertion']";*/
+
+
+          // 优化后的精确 XPath（关键修改）
+          const messageSignatureXpath =
+            "/*[local-name() = 'Response' or local-name() = 'AuthnRequest' or local-name() = 'LogoutRequest' or local-name() = 'LogoutResponse']/*[local-name() = 'Signature']";
+
+          const assertionSignatureXpath =
+            "/*[local-name() = 'Response' or local-name() = 'AuthnRequest']/*[local-name() = 'Assertion']/*[local-name() = 'Signature']";
+
+          const wrappingElementsXPath =
+            "/*[local-name() = 'Response']/*[local-name() = 'Assertion']/*[local-name() = 'Subject']/*[local-name() = 'SubjectConfirmation']/*[local-name() = 'SubjectConfirmationData']//*[local-name() = 'Assertion' or local-name() = 'Signature']";
+
+          const encryptedAssertionsXPath =
+            "/*[local-name() = 'Response']/*[local-name() = 'EncryptedAssertion']";
 
             // 检测包装攻击
             // @ts-expect-error misssing Node properties are not needed
